@@ -1,1 +1,20 @@
 \chapter{sPIN Revisited}
+
+Throughout the process of building the FPsPIN demo, we ...
+\pengcheng{intro: missing parts in the sPIN specification for real-world operation.  Communicated back to the sPIN team and some are already adopted into the current sPIN specification}
+
+\section{Packet matching rules}
+
+\section{Network-layer protocol handling} \label{sec:l3-protocol-handling}
+\pengxu{for example incoming ARP probes when using Ethernet/IP}
+\pengxu{Sending packet: share neighbour buffer with host?  Implement ARP stack in sPIN?}
+
+\section{Reliability layer: SLMP} \label{sec:slmp}
+\pengxu{protocol should be message oriented (instead of TCP).  reliability requirements: SCTP, DCCP, SLMP, pure UDP}
+\pengxu{SLMP ACK configuration}
+
+\section{Concurrency control on the scheduler}
+\pengxu{Ability to control degree of parallelism \& locality.  Possible implementation: core mask on the scheduler}
+
+\section{Support for different memory architectures}
+\pengxu{Corundum supports NIC-attached DDR or HBM; should extend the }

@@ -22,12 +22,12 @@ An overview of all the hardware components is shown in \Cref{fig:hw-overview}.  
 The control path handles configuration of the PsPIN cluster as well as the various data path components \emph{before} the actual execution of handler code on the cluster.  There are three important control-path tasks to perform from the host, all of which are implemented over Corundum's slow-path 32-bit AXI-Lite interface with an address bus of 16 bits:
 
 \begin{itemize}
-    \item to toggle various control wires (e.g., reset, fetch enable, etc.) into the PsPIN cluster and datapath components;
+    \item to toggle various control registers to the PsPIN cluster and datapath components;
     \item to read back standard output produced by PsPIN (i.e., \texttt{printf}); and
     \item to load program code and data onto memory in the PsPIN cluster.
 \end{itemize}
 
-\paragraph{Control wires} The control wires are configured through the \texttt{pspin\_ctrl\_regs} module.  The module exposes an AXI-Lite slave towards the AXI-Lite interconnect and converts this into simple \texttt{valid}-guarded interfaces for PsPIN and various datapath components to consume.  Some signal groups have requirements on \emph{consistency of update}, that is, the signals in the same group should always be consistent and no partial updates should be visible to the components being controlled.  Checks for this requirement happens in the kernel driver as we will introduce in \Cref{sec:sw-kmod}.  An overview of the exposed control signals from \texttt{pspin\_ctrl\_regs} is shown in \Cref{tab:ctrl-signals}.
+\paragraph{Control registers} The control registers are configured through the \texttt{pspin\_ctrl\_regs} module.  The module exposes an AXI-Lite slave towards the AXI-Lite interconnect and converts this into simple \texttt{valid}-guarded interfaces for PsPIN and various datapath components to consume.  Some signal groups have requirements on \emph{consistency of update}, that is, the signals in the same group should always be consistent and no partial updates should be visible to the components being controlled.  Checks for this requirement happens in the kernel driver as we will introduce in \Cref{sec:sw-kmod}.  An overview of the exposed control signals from \texttt{pspin\_ctrl\_regs} is shown in \Cref{tab:ctrl-signals}.
 
 \begin{table}[ht]
     \centering
@@ -46,6 +46,8 @@ The control path handles configuration of the PsPIN cluster as well as the vario
     \caption{Overview of the control wires consumed by \texttt{pspin\_ctrl\_regs}.  The configuration for the matching engine, HER generator, and standard output readback are described in the coming sections.}
     \label{tab:ctrl-signals}
 \end{table}
+
+The control registers module is designed to allow reconfiguration during normal operation of the system.  Therefore, components that take configuration data from the module are expected to have a explicit \emph{valid} signal, if they expect consistency between multiple registers.  The software that controls these register would then deassert valid, change the registers, and then reassert valid, such that the downstream module can have a consistent configuration.
 
 \paragraph{Standard output access} To facilitate debugging of handler code on the PsPIN cluster, we implement a readback mechanism for the characters printed by the RISC-V cores.  The core executes \texttt{putchar} to write characters into the \texttt{apb\_stdout} module.  Different cores write to separate addresses exported by the module, allowing the module to demultiplex the incoming characters.  The module enqueues the characters toegether with the source core ID in a FIFO.  The FIFO is then read out from \texttt{pspin\_ctrl\_regs}.  To avoid introducing module ports on all levels of RTL hierarchy, we utilise the \emph{hierarchical reference scope}\footnote{\url{https://www.chipverify.com/verilog/verilog-hierarchical-reference-scope}} feature of Verilog to connect the output ports from \texttt{apb\_stdout} directly.  Finally, the host can read back the enqueued characters by reading out the \texttt{stdout\_*} registers through the register interface, demultiplex, and store the output as logs for future inspection.
 
@@ -67,20 +69,55 @@ The FPGA board we use, as described in \Cref{sec:eval-setup}, has two 100 Gbps i
 
 \subsection{Ingress}
 
-After a packet has arrived at the \emph{interface} attach point, multiple tasks need to be done for an ingress packet before it lands in PsPIN memory and is ready for processing.  We implement four separate functional blocks as follows; together they form the ingress datapath module (\texttt{pspin\_ingress\_datapath}):
+After a packet has arrived at the \emph{interface} attach point, multiple tasks need to be done for an ingress packet before it lands in PsPIN memory and is ready for processing.  We implement four separate functional blocks as follows; together they form the ingress datapath module (\texttt{pspin\_\-ingress\_\-datapath}):
 
-\begin{enumerate}
+\begin{itemize}
     \item \texttt{pspin\_\-pkt\_\-match}: match if the packet is to be processed by the SmartNIC cluster or to be forwarded to the normal Corundum datapath;
     \item \texttt{pspin\_\-pkt\_\-alloc}: allocate buffer for the incoming packet in the L2 packet buffer, free the buffer once it finishes processing;
     \item \texttt{pspin\_\-ingress\_\-dma}: DMA write the packet data into the L2 packet buffer
     \item \texttt{pspin\_\-her\_\-gen}: generate the Handler Execution Request to the PsPIN cluster
-\end{enumerate}
+\end{itemize}
 
-We explain in detail the design 
+We explain in detail the design of these modules.  Note that common design considerations presented in \Cref{sec:hw-design-considerations} apply to these modules.
 
+\paragraph{Packet matching engine} \texttt{pspin\_\-pkt\_\-match} exposes one AXI-Stream slave (\texttt{s\_\-axis\_\-nic\_\-*}) towards the upstream packet data that comes from the application block interface in Corundum.  It further exposes two AXI-Stream master ports towards the downstream packet processing logic.  One of them (\texttt{m\_\-axis\_\-pspin\_\-*}) forwards the matched packet data to the rest of the datapath components for further processing.  In addition, the module also exposes metadata for the matched packet over a ready-valid interface (\texttt{packet\_\-meta\_\-}) providing the downstream components with the following information:
+
+\begin{itemize}
+    \item \emph{Message ID} from the SLMP packet header (see \Cref{sec:slmp} for details of the SLMP protocol), for the \emph{Handler Execution Request} (HER) generator
+    \item \emph{EOM (end-of-message) bit} as specified by the matching ruleset, for the HER generator
+    \item \emph{Ruleset ID} of the matching ruleset, for the HER generator to select the correct execution context
+    \item \emph{Length} of the packet, for the packet buffer allocator
+\end{itemize}
+
+Since we need to count the length of the packet, the packet metadata can only be generated after that the packet has been trasferred on the AXI-Stream interface.  A later stage in the datapath (the ingress DMA engine) will reverse this dependency by buffering the packet data.
+
+We adopt a simple approach to define the matching rules similar to the IPTables U32 match~\cite{cohen_iptables_nodate}.  The matching engine provides a configurable number of \emph{rulesets}.  We expose ruleset configuration to the host as registers.  Each ruleset is defined by a configurable number of \emph{matching rules} for the \emph{matching units}, which, each one on its own, matches against a 32-bit word of the packet and produces a boolean output.  Given index $I$, 32-bit mask $M$, 32-bit start value $S$, and 32-bit end value $E$, the matching unit output is defined as:
+
+\[
+\text{Output} := S \le (\text{Packet}[4I:4I+3] \mathbin{\&} M) \le E
+\]
+
+Each ruleset defines a \emph{mode} in which the output from the matching units are combined into the match output of the ruleset.  We currently implement two modes: \texttt{MATCH\_\-AND}, which combines the match unit outputs with a logical AND; and \texttt{MATCH\_\-OR}, for a logical OR.  The module is designed such that it is easy to add another combination mode, if such a use case rises (for example an \emph{exactly-one} combination mode).  If any of the installed rulesets matched on the packet, the module marks the packet as matched for further processing in the datapath.  The module then sets the \emph{ruleset ID} metadata of the packet accordingly for execution context selection as described later when we introduce the HER generator.
+
+The other AXI-Stream master interface (\texttt{m\_\-axis\_\-nic\_\-*}) performs a \emph{pass-through} of packets that did not match with any installed rulesets back into the regular Corundum packet datapath.  This allows the NIC with PsPIN attached to it to still function as a normal NIC when PsPIN is not configured.  It also enables host processing of traffic that is not of interest to PsPIN, for example in handling the \emph{Address Resolution Protocol} (ARP) as described in \Cref{sec:l3-protocol-handling}, or when implementing an application-level control plane in the MPI Datatypes application as described in \Cref{sec:mpi-datatypes-demo}.
+
+\paragraph{Packet buffer allocator} The packet buffer allocator takes the metadata from the matching engine and allocates a buffer for the packet in the L2 packet buffer of PsPIN.  It runs the allocation algorithm based on the packet length, adds the resulting address of the allocated buffer to the packet metadata, and forwards the metadata to the DMA engine to actually write the packet into the memory.  It takes in the \emph{feedback} from PsPIN, which denotes that a packet has been processed and its buffer can be freed, to free the buffer correctly.  It further outputs one statistics counter of how many packets have been dropped due to the buffer being full.
+
+The Verilator model originally developed in the PsPIN project uses a software-based ring buffer in the simulation testbench to allocate space for incoming packets in the packet buffer.  The free algorithm needs to keep a queue of out-of-order frees and is thus difficult to implement in hardware.  However, most packets on the Internet and in data center environments follow a \emph{bimodal} distribution in size: 40\% of packets are below 64 bytes and another 40\% are 1500 bytes (the MTU of an Ethernet/IP network)~\cite{john_analysis_2007,benson_understanding_2009}.  We thus take a simpler \emph{fixed-size} allocation approach: we partition the packet buffer into two halves; in one half we make fixed 64-byte slots, and in the other half we make 1536-byte slots.  We store these free slots in two separate FIFOs.  We then handle allocation and free simply by popping from and pushing to the respective FIFOs.  This way, we greatly simplify the hardware implementation of the allocator while not sacrificing too much buffer utilisation on internal fragmentation.
+
+\pengcheng{(how) do we claim against fragmentation?  should we state that we can just increase the size of the packet buffer?}
+
+\paragraph{Ingress DMA} The ingress DMA module takes the allocated address and length in the packet metadata and performs a DMA transaction to write the packet data to the PsPIN NIC inbound memory port.  Upon finish of the DMA request, the module forwards the packet metadata on to the HER generator in the datapath, such that the packet can get scheduled on the PsPIN cluster.  We use the \texttt{axi\_\-dma\_\-wr} module from the Corundum AXI IP library to perform the actual DMA operation.
+
+One complication to be handled in this module is that the matching engine could only generate the packet metadata \emph{after} transferring the packet data on the AXI-Stream bus.  This is due to a dependency introduced by needing to count the length of the message.  This is handled by introducing a shallow \texttt{axis\_\-fifo} to reverse this dependency for the DMA module.
+
+\paragraph{HER generator} Once the packet is written to the right place in the L2 packet buffer of PsPIN, the datapath can now schedule the packet for processing by issuing a \emph{Handler Execution Request} (HER) to PsPIN.  Part of the information required to generate a HER comes from the packet metadata, such as the message ID and if the packet is the last in a message (\emph{End-Of-Message}, EOM).  The rest of the HER stores the address of the handler functions that the packet should be processed with, as well as the host DMA and L2 memory regions.  We expose a register control interface to the host through \texttt{pspin\_\-ctrl\_\-regs}.
+
+\paragraph{Collective ingress datapath} \texttt{pspin\_\-ingress\_\-datapath} does not provide extra logic by itself, as it is simply an instantiation wrapper of the four datapath components.  It keeps the parameters in synchronisation among the datapath modules and allows for one single place to pass in custom parameters.  It also functions as a top module for end-to-end simulation and unit tests so that we can validate that the datapath modules have consistent assumptions of how each other operates.
+ 
 \subsection{Egress}
 
-On the egress path, \texttt{pspin\_egress\_dma} handles DMA read from the packet buffer to inject into the outbound AXI Stream of Corundum.  All these modules are controllable on the host through the control registers module \texttt{pspin\_ctrl\_regs}.
+On the egress path, \texttt{pspin\_egress\_dma} handles DMA read from the packet buffer to inject into the outbound AXI Stream of Corundum.
 
 \section{Host DMA}
 
@@ -88,7 +125,7 @@ As defined in the sPIN specification, packet handlers running on PsPIN can read 
 
 \pengcheng{unaligned transfers: recover address from AXI burst wstrb}
 
-\section{Design Considerations}
+\section{Design Considerations} \label{sec:hw-design-considerations}
 \pengcheng{PsPIN critical path analysis and why it could only run at 40 MHz}
 \pengcheng{Cross clk domain considerations}
 

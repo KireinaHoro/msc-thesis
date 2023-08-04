@@ -21,3 +21,15 @@
 %% Also set the alternate phi as default.
 \let\oldphi\phi
 \renewcommand{\phi}{\ensuremath{\varphi}}
+
+% comments
+\newcommand{\pengcheng}[1]{\todo[color=LimeGreen, inline]{\textbf{pengcheng: }#1}}
+\newcommand{\pengxu}[1]{\pengcheng{#1}}
+
+% https://tex.stackexchange.com/a/9372
+\newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
+
+% https://tex.stackexchange.com/questions/42619/xmark-that-complements-the-ams-checkmark
+\newcommand{\yes}{{\bf\ding{51}}}
+\newcommand{\partially}{{\bf\ding{108}}}
+\newcommand{\no}{{\bf\ding{55}}}
