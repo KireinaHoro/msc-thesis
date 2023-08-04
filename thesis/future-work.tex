@@ -1,0 +1,9 @@
+\chapter{Future Work}
+
+\paragraph{Throughput evaluation} We performed extensive latency characterisation of FPsPIN in \Cref{sec:eval}.  However, a thorough throughput analysis would help further identify bottlenecks and limitations in the implementation.  We plan to test the theoretical throughput of PsPIN handlers with synthetic benchmarks, as well as real-world applications, both with and without host processing.
+
+\paragraph{Improving $F_{\text{max}}$} An important factor in the current FPsPIN E2E latency as shown in the ICMP ping demo is the handler processing latency.  This is due to the PULP cluster being designed for ASIC and not optimised for maximum $F_{\text{max}}$ on FPGAs.  We plan to integrate higher frequency RISC-V cores designed FPGA, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as well as optimise critical paths in the design, to further lower this latency.
+
+\paragraph{Real-world applications} We showcased the capabilities of PsPIN handlers through the UDP ping-pong demo.  However, it would be more beneficial to have real-world applications instead of synthetic benchmarks only.  To further explore in this aspect, we are implementing a memcached-style offloaded key-value store application.  We are also working on porting the MPI Datatypes handlers~\cite{Di_Girolamo_2019} to the FPsPIN platform.
+
+\paragraph{Multi-tenancy} Tenant oversubscription is a typical approach to improve NIC resource utilization in a virtualized data center environment. We aim to enable fair scheduling mechanisms both in hardware and software in the next iterations of the FPsPIN design.

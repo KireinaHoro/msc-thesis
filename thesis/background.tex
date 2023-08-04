@@ -1,0 +1,38 @@
+\chapter{Background}
+
+\section{sPIN}
+\pengcheng{sPIN in-network computing}
+FPsPIN conforms to \underline{S}treaming \underline{P}rocessing \underline{i}n the \underline{N}etwork (sPIN). sPIN is a programming model that allows a programmer to offload lightweight data path and compute parts of the application code the NIC~\cite{hoefler2017spin}. sPIN is designed to expose packet level parallelism through execution of \textit{packet handlers}. Packet handlers are executed concurrently on the SmartNIC compute cores. sPIN defines three types of handlers that could be executed within the stateful context of a packet flow: 1) a header handler to be executed on the first packet of a flow, 2) a payload handler that is executed on every packet, and 3) a completion handler executed upon reception of the last packet.
+
+\section{PsPIN} \label{sec:background-pspin}
+\pengcheng{PsPIN}
+
+\begin{table}[ht!]
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+\textbf{Clusters, N}                                                                   & \textbf{2} & \textbf{4}    & \textbf{8} & \textbf{16} \\ \cmidrule(r){1-5}
+Total Area, MGE                                                    & 45.25    & 90.50    & 181.00 & 362.01     \\ \addlinespace[0.5em]
+Avg. Per-Packet Budget, Cycles                                                         & 346.05    & 692.10  & 1384.20 & 2768.38     \\\bottomrule
+\end{tabular}%
+}
+\caption{Near linear scaling of the total cluster area ($8\times$ cores per cluster) compared to the per-packet time budget at $400$Gbit/s. The total area is estimated using synthesis of PsPIN in $22$nm@$1$GHz.}
+\label{tab:cost_model}
+\vspace{-0.9em}
+\end{table}
+
+FPsPIN is based on the PsPIN SmartNIC~\cite{di2021risc}, an open-source implementation of the sPIN API. PsPIN is a bump-in-the-wire SmartNIC architecture based on PULP, the silicon-proven energy-efficient 32-bit RISC-V SoC~\cite{rossi2015pulp}. Its memory hierarchy comprises shared per-cluster scratchpad memories that could be accessed in 1-cycle and slower L2 memory shared among core clusters.
+
+\paragraph{PsPIN scalability} The key feature of PULP is its scalability, thanks to the hierarchical SoC interconnect based on the AXI protocol. As we report in \Cref{tab:cost_model}, the clustered architecture of PsPIN allows for a linear scaling of the SoC compute capacity compared to the total area needed for cores, memory, and SoC interconnect~\cite{di2021risc}. Thus, to fit a tighter per-packet processing budget with a higher link speed, one just needs to scale the number of PULP compute clusters proportionally. Estimation of a simulated per-packet time needed for offloading of the Reduce operation, a networking primitive that is used in distributed deep learning, shows that the optimal configuration at the 400 Gbit/s link bandwidth could be achieved at the 4 clusters, eight cores each.
+
+\section{Corundum} \label{sec:background-corundum}
+\pengcheng{Corundum: FPGA-based customizable 100G Ethernet NIC}
+
+Corundum~\cite{forencich2020fccm} is an open-source, FPGA-based NIC and a platform for in-network computing.  The project supports 10/25/100 Gbps Ethernet on Xilinx and Intel platforms.  Among the many features it supports, the most important for FPsPIN is custom logic to extend the functionality of the NIC together with interfaces to the control path, data path, and DMA subsystems.  They also provide kernel drivers and user space utilities for Linux.  This makes it a perfect candidate platform for integrating a packet processing cluster to build a full SmartNIC.
+
+\pengcheng{FPsPIN: bridge gaps between PsPIN and a real NIC.  Discuss the hardware and software design of the entire system.  Some assumptions made were not realistic (messaging interface on Ethernet: SLMP); explore new possibilities (reconfigurability for accelerator)}
+
+Even though we have the major components of the SmartNIC ready, we still need to integrate them to create a complete SmartNIC.  \Cref{fig:full-system} shows the entire server system with the SmartNIC to perform real-world workloads.  Apart from the PsPIN processing cluster marked in green, we also need the data path engines and PCIe interface in hardware.  Some of these components come from Corundum, while others, such as the matching engine that determines which packets are going to be processed by the cluster, need to be designed and implemented from scratch.  In addition, as Corundum and PsPIN are developed independently, we need various bus interconnects to bridge the control and data paths.  Furthermore, the host-side device drivers and the runtime library for interfacing with the processing cluster needs to be implemented as well.
+
+\pengxu{Introduce the coming chapters}
+In this section, we cover the hardware and software design points of FPsPIN.  We explain the missing components we implement to achieve a fully functioning system.  We also discuss the various trade-offs in terms of implementation under the time constraints of this project.
