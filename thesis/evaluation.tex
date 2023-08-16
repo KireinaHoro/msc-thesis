@@ -1,4 +1,4 @@
-\chapter{Evaluation}
+\chapter{Evaluation} \label{chap:eval}
 
 \pengcheng{for each experiment, 4 paragraphs: 1. why are we doing the experiment and what is to show; 2. description of the experimental procedure; 3. describe the results; 4. draw a conclusion}
 
@@ -13,6 +13,8 @@ The experiments are done on the AMD server with the Ryzen 7 2700 CPU and the PCI
 
 On the FPGA, Corundum runs at its native frequency of 250 MHz.  Due to PsPIN IP not being designed for FPGAs but for ASICs, the PULP RISC-V cores have long critical paths.  As a result, the processing cluster runs at 40 MHz.
 
+\pengcheng{incremental implementation flow}
+
 \begin{figure}
     \centering
     \includegraphics[width=.9\linewidth]{figures/experiment-setup.pdf}
@@ -20,9 +22,14 @@ On the FPGA, Corundum runs at its native frequency of 250 MHz.  Due to PsPIN IP 
     \label{fig:experiment-setup}
 \end{figure}
 
-\section{Theoretical data path analysis} \label{sec:hw-latency-analysis}
+\section{Design analysis} \label{sec:hw-analysis}
 
-We estimate the latency of the hardware components as described in \Cref{sec:hw}.  \Cref{tab:lat-cycles} shows the latency in cycles based on the state machine construction in the Verilog RTL code, the frequency, and the latency time in nanoseconds.  Due to a limitation in the implementation, not all modules have a constant latency (\texttt{pspin\_ingress\_dma}), but is instead linearly related to the packet size.  We show in the next paragraph that these latency numbers are negligible compared to other parts of the system and, thus, would not have a big impact on overall latency.
+\pengcheng{hardware: theoretical latency numbers}
+\pengcheng{hardware: resource utilisation numbers}
+
+\pengcheng{should this be here or after \Cref{sec:hw-design-considerations}?}
+
+We estimate the latency of the hardware components as described in \Cref{chap:hardware}.  \Cref{tab:lat-cycles} shows the latency in cycles based on the state machine construction in the Verilog RTL code, the frequency, and the latency time in nanoseconds.  Due to a limitation in the implementation, not all modules have a constant latency (\texttt{pspin\_ingress\_dma}), but is instead linearly related to the packet size.  We show in the next paragraph that these latency numbers are negligible compared to other parts of the system and, thus, would not have a big impact on overall latency.
 
 \begin{table}[!htbp]
     \centering
@@ -118,3 +125,5 @@ While the ICMP ping protocol allows good performance characterisations of FPsPIN
 \pengcheng{stress CPU with dgemm, tune size to minimise latency and poll overhead}
 \pengcheng{overlapping ratio, e2e bandwidth and latency}
 \pengcheng{message-level parallelism; 1. make handlers stateless; a) we replay segments on every packet b) ideally we get rid of the MPICH segments data structure with the compiled datatypes paper impl.  2. allocate dynamically the per-message state (to support arbitrary number of messages).  3. have a fixed number of message states for all in-flight messages and spill to the host if we have too many (picked)}
+
+\pengcheng{possible performance optimisations/current limitations: bank conflicts accessing datatypes dataloop state in L2; lower bandwidth by DMA-ing from L1 instead of L2.  (do we actually talk about these?)}

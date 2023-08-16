@@ -26,6 +26,8 @@
 \newcommand{\pengcheng}[1]{\todo[color=LimeGreen, inline]{\textbf{pengcheng: }#1}}
 \newcommand{\pengxu}[1]{\pengcheng{#1}}
 
+\newcommand{\timos}[1]{\todo[color=Lavender, inline]{\textbf{timos: }#1}}
+
 % https://tex.stackexchange.com/a/9372
 \newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
 
@@ -33,3 +35,19 @@
 \newcommand{\yes}{{\bf\ding{51}}}
 \newcommand{\partially}{{\bf\ding{108}}}
 \newcommand{\no}{{\bf\ding{55}}}
+
+% https://tex.stackexchange.com/a/53380/150873
+\makeatletter
+\renewcommand{\@chapapp}{}% Not necessary...
+\newenvironment{chapquote}[2][2em]
+  {\setlength{\@tempdima}{#1}%
+   \def\chapquote@author{#2}%
+   \parshape 1 \@tempdima \dimexpr\textwidth-2\@tempdima\relax%
+   \itshape}
+  {\par\normalfont\hfill--\ \chapquote@author\hspace*{\@tempdima}\par\bigskip}
+\makeatother
+
+% https://tex.stackexchange.com/a/8473/150873
+\usepackage{tikz}
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+    \node[shape=circle,draw,inner sep=1pt,scale=0.8] (char) {#1};}}

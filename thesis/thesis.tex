@@ -53,6 +53,12 @@
 %% declaration of originality.
 \usepackage{pdfpages}
 
+%% For the epigraph of chapters.
+\usepackage{epigraph}
+
+%% Subfigures
+\usepackage{caption,subcaption}
+
 %% Some more packages that you may want to use.  Have a look at the
 %% file, and consult the package docs for each.
 \input{extrapackages}
@@ -77,12 +83,16 @@
 %% Document information
 %% ====================
 
-\title{Whole-system Integration of the sPIN In-Network-Compute Architecture}
+\title{Full-system Evaluation of the sPIN In-Network-Compute Architecture}
 \author{Pengcheng Xu}
 \thesistype{Master Thesis}
 \advisors{Advisors: Prof.\ Dr.\ Torsten Hoefler, Mikhail Khalilov, Timo Schneider}
 \department{Department of Computer Science}
 \date{1 September, 2023}
+
+% for figures in background
+\newlength{\twosubht}
+\newsavebox{\twosubbox}
 
 \begin{document}
 
@@ -113,6 +123,7 @@
 \input{spin-revisited}
 \input{evaluation}
 \input{future-work}
+\input{conclusion}
 
 \appendix
 
