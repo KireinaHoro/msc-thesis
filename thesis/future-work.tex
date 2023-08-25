@@ -9,13 +9,9 @@ An important factor in the current FPsPIN E2E latency as shown in the ICMP ping 
 
 \pengcheng{Explore possible timing relaxations such as increasing the SRAM latency}
 
-\section{More real-world applications}
+\section{More Real-world Applications}
 
 We showcased the capabilities of PsPIN handlers through the UDP ping-pong demo.  However, it would be more beneficial to have real-world applications instead of synthetic benchmarks only.  To further explore in this aspect, we are implementing a memcached-style offloaded key-value store application.  We are also working on porting the MPI Datatypes handlers~\cite{Di_Girolamo_2019} to the FPsPIN platform.
 
-\section{Explore functionalities from Corundum}
+\section{Explore Functionalities from Corundum}
 \pengcheng{NIC-side DRAM, outbound commands to use checksum offloading, PTP timestamps, etc.}
-
-\section{Multi-tenancy}
-\pengcheng{remove?}
-Tenant oversubscription is a typical approach to improve NIC resource utilization in a virtualized data center environment. We aim to enable fair scheduling mechanisms both in hardware and software in the next iterations of the FPsPIN design.

@@ -26,12 +26,9 @@ An overview of all the hardware components is shown in \Cref{fig:hw-overview}.  
 
 \pengcheng{distinguish control path/data path from control flow/data flow of PsPIN discussed in \Cref{sec:background-pspin}.  Brief diagram to highlight which part of the flow we are talking about}
 
-\section{Control path}
+\section{Control Path} \label{sec:hw-control}
 
-The control path handles configuration of the PsPIN cluster as well as the various data path components \emph{before} the actual execution of handler code on the cluster.  There are three important control-path tasks to perform from the host, all of which are implemented over Corundum's slow-path 32-bit AXI-Lite
-\timos{what is AXI-Lite? Will this go into Background?}
-\pengxu{cross-ref \Cref{sec:fpga-basics}}
-interface with an address bus of 16 bits:
+The control path handles configuration of the PsPIN cluster as well as the various data path components \emph{before} the actual execution of handler code on the cluster.  There are three important control-path tasks to perform from the host, all of which are implemented over Corundum's slow-path 32-bit AXI-Lite (\Cref{sec:fpga-basics}) interface with an address bus of 16 bits:
 
 \begin{itemize}
     \item to toggle various control registers to the PsPIN cluster and data path components;
@@ -39,7 +36,7 @@ interface with an address bus of 16 bits:
     \item to load program code and data onto memory in the PsPIN cluster.
 \end{itemize}
 
-\paragraph{Control registers} The control registers are configured through the \texttt{pspin\_\-ctrl\_\-regs} module.  The module exposes an AXI-Lite slave towards the AXI-Lite interconnect and converts this into simple \texttt{valid}-guarded interfaces \timos{what is a valid-guarded interface?} for PsPIN and various data path components to consume.  Some signal groups have requirements on \emph{consistency of update}, that is, the signals in the same group should always be consistent and no partial updates should be visible to the components being controlled.  Checks for this requirement happens in the kernel driver as we will introduce in \Cref{sec:sw-kmod}.  An overview of the exposed control signals from \texttt{pspin\_\-ctrl\_\-regs} is shown in \Cref{tab:ctrl-signals}.
+\paragraph{Control registers} The control registers are configured through the \texttt{pspin\_\-ctrl\_\-regs} module.  The module exposes an AXI-Lite slave towards the AXI-Lite interconnect and converts this into simple \texttt{valid}-guarded interfaces (\Cref{sec:fpga-basics}) for PsPIN and various data path components to consume.  Some signal groups have requirements on \emph{consistency of update}, that is, the signals in the same group should always be consistent and no partial updates should be visible to the components being controlled.  Checks for this requirement happens in the kernel driver as we will introduce in \Cref{sec:app-kmod}.  An overview of the exposed control signals from \texttt{pspin\_\-ctrl\_\-regs} is shown in \Cref{tab:ctrl-signals}.
 
 \begin{table}[ht]
     \centering
@@ -55,20 +52,61 @@ interface with an address bus of 16 bits:
     \texttt{stdout\_*} & O & Standard output readback \\
     \bottomrule
     \end{tabular}
-    \caption{Overview of the control wires consumed by \texttt{pspin\_ctrl\_regs}.  The configuration for the matching engine, HER generator, and standard output readback are described in the coming sections. \timos{All the names used here do not appear before (HER generator, matching engine) - in Fig 3.1 I see things like pspin\_pkt\_match - so maybe it refers to that, but there should be a piece of text explaining Fig 3.1 which connects those block names to high-level concepts.}}
+    \caption{Overview of the control wires consumed by \texttt{pspin\_ctrl\_regs}.  The configuration for the matching engine, HER generator, and standard output readback are described in the coming sections. \timos{All the names used here do not appear before (HER generator, matching engine) - in Fig 3.1 I see things like pspin\_pkt\_match - so maybe it refers to that, but there should be a piece of text explaining Fig 3.1 which connects those block names to high-level concepts.} \pengcheng{blend this better with the declarative control signal generation}}
     \label{tab:ctrl-signals}
 \end{table}
 
-The control registers module is designed to allow reconfiguration during normal operation of the system.  Therefore, components that take configuration data from the module are expected to have a explicit \emph{valid} signal, if they expect consistency between multiple registers.  The software that controls these register would then deassert valid, change the registers, and then reassert valid, such that the downstream module can have a consistent configuration.
+The control registers module is designed to allow reconfiguration during normal operation of the system.  Therefore, components that take configuration data from the module are expected to have a explicit \emph{valid} signal, if they expect consistency between multiple registers.  The software that controls these register would then de-assert valid, change the registers, and then reassert valid, such that the downstream module can have a consistent configuration.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.8\textwidth]{thesis/figures/corundum-pspin-addr.pdf}
+    \caption{Address translation from the Corundum application control space.  Access to the PsPIN host access space always have the top bit as 0; we use the second top bit to select the correct memory area in PsPIN.  Access to the configuration registers have the top bit set to 1; the 22-bit offset is decoded as the 16-bit control register address and the top 6 bits ignored.} \label{fig:hw-addr-map}
+\end{figure}
+
+We group registers by the subsystem they control (e.g. the matching engine or the HER generator) and assign a block of address in the control register address space.  We then refine these groups into subgroups that each of them control a specific field of configuration; some of the subgroups contain multiple identical register instances (e.g. for multiple rulesets in the matching engine).  As shown in \Cref{fig:hw-addr-map}, the 16-bit control register address uses the top 4 bits ("grpid") to address the register groups and the lower 12 bits ("regid") to address the subgroup and register instances.  We do not explicitly define a subgroup field in the address due to different subgroup sizes across different groups.
+
+To maintain consistency about the naming, word size, and addressing about various registers, we define registers in a declarative approach with an external generator (\texttt{regs-compiler.py}).  The hierarchical organisation of registers is demonstrated by the metadata describing all the registers, shown in \Cref{lst:reg-meta}.  The generator allocates addresses in the register address space w.r.t.\ the group-subgroup abstraction described in the paragraph above.
+
+\begin{listing}[tp]
+\begin{minted}{py}
+groups = [
+    RegGroup('cl', [
+        RegSubGroup('ctrl',     False, 2),
+        RegSubGroup('fifo',     True,  1),
+    ]),
+    RegGroup('me', [
+        RegSubGroup('valid',    False, 1, 1),
+        RegSubGroup('mode',     False, 4, 1),
+        RegSubGroup('idx',      False, 16, 32),
+        RegSubGroup('mask',     False, 16, 32),
+        RegSubGroup('start',    False, 16, 32),
+        RegSubGroup('end',      False, 16, 32),
+    ]),
+    RegGroup('her_meta', [
+        RegSubGroup('handler_mem_addr',   False, 4),
+        RegSubGroup('handler_mem_size',   False, 4),
+        RegSubGroup('host_mem_addr',      False, 4, 64),
+        RegSubGroup('host_mem_size',      False, 4),
+        RegSubGroup('hh_addr',            False, 4),
+        RegSubGroup('hh_size',            False, 4),
+        # ... more subgroups ...
+    ]),
+    # ... more groups ...
+]
+\end{minted}
+\caption{A simplified excerpt of the metadata definition of control registers in FPsPIN.  \texttt{RegGroup} defines the name and children (subgroups) of the register group; \texttt{RegSubGroup} defines the name, immutability (from the CPU), number of registers, and optionally the signal width in hardware of the subgroup.  These are later consumed by Verilog and C templates to generate the register definition and use sites.} \label{lst:reg-meta}
+\end{listing}
+
+Verilog modules that interact with the control register system are written in a template language, namely Jinja~\cite{noauthor_jinja_nodate}, that abstracts the exact register definitions away.  A generator written in Python processes all Verilog templates w.r.t.\ the register metadata and emits the final source file ready for synthesis.  Such an approach eliminates the tedious and error-prone maintenance of repetitive register definitions and proved to be crucial as the number of control wires grows.  The generator also derives part of the kernel driver that later exposes these control registers as described later in \Cref{sec:app-kmod}.
 
 \paragraph{Standard output access} To facilitate debugging of handler code on the PsPIN cluster, we implement a readback mechanism for the characters printed by the RISC-V cores.  The core executes \texttt{putchar} to write characters into the \texttt{apb\_stdout} module.  Different cores write to separate addresses exported by the module, allowing the module to demultiplex the incoming characters.  The module enqueues the characters toegether with the source core ID in a FIFO.  The FIFO is then read out from \texttt{pspin\_ctrl\_regs}.  To avoid introducing module ports on all levels of RTL hierarchy, we utilise the \emph{hierarchical reference scope}~\cite{noauthor_verilog_nodate} feature of Verilog to connect the output ports from \texttt{apb\_stdout} directly.  Finally, the host can read back the enqueued characters by reading out the \texttt{stdout\_*} registers through the register interface, demultiplex, and store the output as logs for future inspection.
 
-\paragraph{Code and data download} The code and data of the packet handler program on PsPIN need to be loaded into the \emph{program memory} in PsPIN before we can start scheduling packets to execute on the HPUs.  The program memory is accessible through the \emph{host slave} port on the PsPIN cluster.  This port also allows write to the other two memory areas, the \emph{handler memory} and the \emph{packet memory}.  Together, this allows loading of compiled PsPIN program images onto the cluster memory.
+\paragraph{Code and data download} The code and data of the packet handler program on PsPIN need to be loaded into the \emph{program memory} in PsPIN before we can start scheduling packets to execute on the HPUs.  The program memory is accessible through the \emph{host slave} port on the PsPIN cluster.  This port also allows write to the other memory area, the \emph{handler memory}, to allow writing either static or dynamic configuration data by the host.  Together, this allows loading compiled PsPIN program images onto the cluster memory.
 
-We implement such access by connecting the upstream AXI-Lite port from Corundum, through a AXI-Lite interconnect and a AXI-Lite to AXI4 adpater, to the host slave port.  Note that the PsPIN address space on the host slave port is 32-bits.  However, we only have a 24-bit address space from the application block configuration port from Corundum.  Therefore, we perform a \emph{compression} in the address space by mapping the three memory areas closer together into the configuration port address space.  The loader in the userspace library, as later to be described in \Cref{sec:sw-lib}, will encode the PsPIN memory accesses according to this mapping.
-\timos{Maybe a picture would be useful here to show the actual mapping?}
+We implement such access by connecting the upstream AXI-Lite port from Corundum, through a AXI-Lite interconnect and a AXI-Lite to AXI4 adpater, to the host slave port.  Note that the PsPIN host access address space on the host slave port is 32-bits.  However, we only have a 24-bit address space from the application block control port from Corundum.  Therefore, we perform a \emph{compression} in the address space by mapping the two memory areas closer together into the application control port address space; we demonstrate this in \Cref{fig:hw-addr-map}.  The FPsPIN kernel module (\Cref{sec:app-kmod}) will encode the PsPIN memory accesses according to this mapping.
 
-\section{Data path}
+\section{Data Path}
 
 PsPIN, being a packet processor, needs to have access to the receive and transmit paths in the NIC to function properly.  We introduce in this section the design and implementation of the ingress and egress data path engines that gives PsPIN access to the packet data path.
 
@@ -77,12 +115,12 @@ PsPIN, being a packet processor, needs to have access to the receive and transmi
 \begin{itemize}
     \item \emph{Direct}: the AXI Stream interface directly after the Ethernet MACs and before most Corundum modules.  The interfaces are synchronous to the MAC clock (322.265625 MHz for 100 Gbps Ethernet).  This offers the lowest possible latency from the application block.
     \item \emph{Sync}: the AXI Stream interface after the CDC (clock domain crossing) FIFO for each port.  These interfaces are synchronous to the Corundum core clock (250 MHz).  They offer comparatively low latency.
-    \item \emph{Interface}: the AXI Stream interface after the main packet aggregation FIFO per interface.  These interfaces are per interface (instead of per port; for example a 100 Gbps interface could be split into 4 25 Gbps ports) and are the simplest to process.  They are synchronous to the Corundum core clock (250 MHz).
+    \item \emph{Interface}: the AXI Stream interface after the main packet aggregation FIFO per interface.  These interfaces are per interface (instead of per port; for example a 100 Gbps interface could be split into 4 25 Gbps ports, as described in \Cref{sec:fpga-basics}) and are the simplest to process.  They are synchronous to the Corundum core clock (250 MHz).
 \end{itemize}
 
 The FPGA board we use, as described in \Cref{sec:fpga-basics} and later in detail in \Cref{sec:eval-setup}, has two 100 Gbps interfaces; each interface can be further split up into 4 25 Gbps ports.  For simplicity of implementation, we attach the PsPIN data path at the \emph{interface} attach point, such that we don't have to multiplex traffic from different ports by ourselves.
 
-\subsection{Ingress}
+\subsection{Ingress} \label{sec:ingress-datapath}
 
 After a packet has arrived at the \emph{interface} attach point, multiple tasks need to be done for an ingress packet before it lands in PsPIN memory and is ready for processing.  We implement four separate functional blocks as follows; together they form the ingress data path module (\texttt{pspin\_\-ingress\_\-datapath}):
 
@@ -132,6 +170,8 @@ One complication to be handled in this module is that the matching engine could 
 
 \paragraph{HER generator} Once the packet is written to the right place in the L2 packet buffer of PsPIN, the data path can now schedule the packet for processing by issuing a \emph{Handler Execution Request} (HER) to PsPIN.  Part of the information required to generate a HER comes from the packet metadata, such as the message ID and if the packet is the last in a message (\emph{End-Of-Message}, EOM).  The rest of the HER stores the address of the handler functions that the packet should be processed with, as well as the host DMA and L2 memory regions.  We expose a register control interface to the host through \texttt{pspin\_\-ctrl\_\-regs}.
 
+\pengcheng{host DMA: ring buffer? also cref software section \Cref{sec:}}
+
 \paragraph{Collective ingress data path} \texttt{pspin\_\-ingress\_\-datapath} does not provide extra logic by itself, as it is simply an instantiation wrapper of the four data path components.  It keeps the parameters in synchronisation among the data path modules and allows for one single place to pass in custom parameters.  It also functions as a top module for end-to-end simulation and unit tests so that we can validate that the data path modules have consistent assumptions of how each other operates.
  
 \subsection{Egress}
@@ -150,7 +190,7 @@ There are some notable limitations in this approach, namely that the adapter is 
 
 One important corner case to implement correctly, however, is \emph{unaligned writes}.  As mandated by the sPIN specification and also as we later will see in \Cref{sec:mpi-datatypes-demo}, unaligned transfers are essential to some applications.  While it is possible to implement unaligned transfers in software by reading the affected word first to compose and issue an aligned transfer, the extra memory read transactions (up to \emph{two} extra reads for one unaligned write) would significantly hurt performance.  Fortunately, the Corundum DMA subsystem fully supports unaligned transfers.  As AXI4 expresses unaligned writes as aligned writes with strobe (byte-enable), we implement an \emph{address recovery} procedure that calculates the original address and length from the AXI burst strobe (\texttt{WSTRB}) signal of the first and last beat in the AXI transaction.  The module then issues the unaligned transfer to the client and Corundum DMA subsystem as normal.
 
-\section{Design considerations} \label{sec:hw-design-considerations}
+\section{Design Considerations} \label{sec:hw-design-considerations}
 
 As we stated in \Cref{sec:contributions}, it is not a goal of this thesis project to achieve the absolute highest possible performance.  The hardware implementations are thus designed with the approach of the \emph{simplest} hardware implementation possible.  This means that modules with complicated logic e.g.\ the host DMA engine are simple state machines without pipelining.  We also do not support concurrent requests, even if the protocol supports it (in the case of AXI4 on the host DMA engine).  For the purpose of a full-system demo, we argue later in \Cref{sec:hw-analysis} that these design limitations would not impact the overall system performance.
 

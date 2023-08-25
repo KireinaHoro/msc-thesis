@@ -8,8 +8,9 @@ We present the preliminary evaluation results of the FPsPIN implementation.  We 
 
 \section{Experiment Setup} \label{sec:eval-setup}
 
-The experiments are done on the AMD server with the Ryzen 7 2700 CPU and the PCIe-attached Xilinx VCU1525\footnote{\url{https://www.xilinx.com/products/boards-and-kits/vcu1525-a.html}} development kit.  The two 100 Gbps QSFP Ethernet ports on the FPGA board are attached via one Direct-Attached-Copper (DAC) cable.  A diagram of the experiment platform is shown in \Cref{fig:experiment-setup}.  We use Ubuntu 20.04.4 LTS with Linux 5.15.0-71-generic, Vivado 2020.2, and the PULP RISC-V toolchain\footnote{\url{https://github.com/pulp-platform/pulp-riscv-gnu-toolchain}}. 
+The experiments are done on the AMD server with the Ryzen 7 2700 CPU and the PCIe-attached Xilinx VCU1525\footnote{\url{https://www.xilinx.com/products/boards-and-kits/vcu1525-a.html}} Development Kit; more details can be found in \Cref{sec:fpga-basics}.  While the FPGA board supports 16 lanes of PCIe 3.0, the PCIe port on the host machine is limited to 8 lanes.  The two 100 Gbps QSFP Ethernet ports on the FPGA board are attached via one Direct-Attached-Copper (DAC) cable.  A diagram of the experiment platform is shown in \Cref{fig:experiment-setup}.  We use Ubuntu 20.04.4 LTS with Linux 5.15.0-71-generic, Vivado 2020.2, and the PULP RISC-V toolchain\footnote{\url{https://github.com/pulp-platform/pulp-riscv-gnu-toolchain}}. 
 %\misha{probably we want to mention the bandwidth of the ethernet ports.}
+\pengcheng{describe setup-netns.sh here}
 
 On the FPGA, Corundum runs at its native frequency of 250 MHz.  Due to PsPIN IP not being designed for FPGAs but for ASICs, the PULP RISC-V cores have long critical paths.  As a result, the processing cluster runs at 40 MHz.
 
@@ -22,7 +23,7 @@ On the FPGA, Corundum runs at its native frequency of 250 MHz.  Due to PsPIN IP 
     \label{fig:experiment-setup}
 \end{figure}
 
-\section{Design analysis} \label{sec:hw-analysis}
+\section{Design Analysis} \label{sec:hw-analysis}
 
 \pengcheng{hardware: theoretical latency numbers}
 \pengcheng{hardware: resource utilisation numbers}
@@ -47,7 +48,7 @@ We estimate the latency of the hardware components as described in \Cref{chap:ha
     \label{tab:lat-cycles}
 \end{table}
 
-\section{Demo applications on real hardware}
+\section{Demo Applications on Real Hardware}
 We present two end-to-end demo applications to showcase that FPsPIN has realistic performance characteristics. We show that it is possible to write arbitrary packet-processing applications for the platform. The two applications follow the same operation workflow, also shown in \Cref{fig:demo-apps}:
 
 \begin{enumerate}

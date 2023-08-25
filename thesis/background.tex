@@ -5,7 +5,8 @@ The job of science will never be done, it will just sink deeper and deeper into 
 
 In this chapter, we give an overview of the related technologies and prior works that are important to this thesis.  These projects and ideas are the building blocks of the FPsPIN prototype system.
 
-\section{SmartNIC architectures}
+\section{SmartNIC Architectures}
+\timos{Usualy titles are capitalized, i.e., SmartNIC Architectures}
 SmartNICs from different vendors tend to have different architectures, but they can be classified by the \emph{datapath design} largely into two categories: \emph{on-path} versus \emph{off-path}~\cite{liu_offloading_2019, wei_characterizing_2023}.  We show a brief overview of both paradigms in \Cref{fig:smartnic-datapaths}.  In addition to data path designs, there is also an increasing trend to use \emph{reconfigurable hardware} to implement SmartNICs.  We introduce the various paradigms and discuss how most commodity SmartNICs fit into these categories.
 
 \begin{figure}[tp]
@@ -67,9 +68,9 @@ FPGA-enabled SmartNICs excel in reconfigurability.  While having purpose-built S
     \item A \emph{tail} handler to be executed on the last packet of the flow; this is guaranteed to be scheduled only after all \emph{payload} handlers finish execution.
 \end{itemize}
 
-Packet handlers are scheduled and executed concurrently on the SmartNIC PEs, namely \emph{handler processing units} (HPU).  A \emph{packet scheduler} schedules incoming packets on the HPUs for execution w.r.t.\ the handler scheduling dependency requirements.  The HPUs access packet data and per-flow states in fast local memory and shared states in the shared NIC memory.  They access host memory through a device-level DMA engine between the host and shared NIC memory.  The host CPU functions as the control plane and is in charge of programming the scheduler and the HPUs, host and NIC memory allocation and initialisation, as well as processing host notifications from the HPUs.
+Packet handlers are scheduled and executed concurrently on the SmartNIC PEs, namely \emph{handler processing units} (HPU).  A \emph{packet scheduler} schedules incoming packets on the HPUs for execution w.r.t.\ the handler scheduling dependency requirements.  The HPUs access packet data and per-flow states in fast local memory and shared states in the shared NIC memory.  They access host memory through a device-level \emph{direct memory access} (DMA) engine between the host and shared NIC memory.  The host CPU functions as the control plane and is in charge of programming the scheduler and the HPUs, host and NIC memory allocation and initialisation, as well as processing host notifications from the HPUs.
 
-\section{FPGA and design reuse} \label{sec:fpga-basics}
+\section{FPGA and Design Reuse} \label{sec:fpga-basics}
 
 \emph{Field-programmable gate arrays} (FPGA)~\cite{brown_field-programmable_1992} is a type of integrated circuit that allows runtime \emph{reconfiguration} after being manufactured.  They consist of an array of \emph{configurable logic blocks} (CLB) that can function either as \emph{lookup tables} (LUT) or \emph{flip-flops} (FF), and programmable routing resources that connect the input and output of CLBs.  LUTs are used to implement combinational logic and FFs sequential logic.  A \emph{bitstream} for an FPGA, when flashed onto the device, configures all CLBs and routing resources into a specific digital logic design.  FPGAs can be used to validate hardware designs before they are taped out into ASICs since large designs take way too long to simulate and bring up complicated software.  They are also used for situations that call for reconfigurability, such as building custom accelerators in the cloud, as well as for products with a small volume where producing ASIC is cost-inefficient.
 

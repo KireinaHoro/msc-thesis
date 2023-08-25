@@ -1,23 +1,30 @@
 \chapter{sPIN Revisited} \label{chap:spin-revisited}
-\begin{chapquote}{John Drury Clark, \textit{Ignition!}}
+\begin{chapquote}{John Drury Clark, \textit{Ignition!--An Informal History of Liquid Rocket Propellants}}
 Their guess turned out to be right, but one is reminded of E. T. Bell's remark that the great vice of the Greeks was not sodomy but extrapolation.
 \end{chapquote}
 
 Throughout the process of building the FPsPIN demo, we ...
 \pengcheng{intro: missing parts in the sPIN specification for real-world operation.  Communicated back to the sPIN team and some are already adopted into the current sPIN specification}
 
-\section{Packet matching rules}
+\section{Handler Initialisation} \label{sec:handler-init}
+\pengcheng{How to initialise handler states?  device function that's called once, that is not a handler (no HER meta etc.)}
+\pengcheng{Init with host involvement.  Should be defined in sPIN as extended\_init or something}
 
-\section{Network-layer protocol handling} \label{sec:l3-protocol-handling}
+\section{Streaming Host DMA} \label{sec:streaming-host-dma}
+\pengcheng{we currently have one large host DMA region per execution context.  it may be beneficial if we stream host processing by having the app call mmap multiple times to feed a ring buffer in the kernel/hardware to feed to the HER generator so that we have one buffer per message.  How to formalise this in sPIN?}
+
+\section{Packet Matching Rules}
+
+\section{Network-layer Protocol Handling} \label{sec:l3-protocol-handling}
 \pengxu{for example incoming ARP probes when using Ethernet/IP}
 \pengxu{Sending packet: share neighbour buffer with host?  Implement ARP stack in sPIN?}
 
-\section{Reliability layer: SLMP} \label{sec:slmp}
+\section{Messaging and Reliability Layer: SLMP} \label{sec:slmp}
 \pengxu{protocol should be message oriented (instead of TCP).  reliability requirements: SCTP, DCCP, SLMP, pure UDP}
 \pengxu{SLMP ACK configuration}
 
-\section{Concurrency control on the scheduler}
+\section{Scheduler Concurrency Control}
 \pengxu{Ability to control degree of parallelism \& locality.  Possible implementation: core mask on the scheduler}
 
-\section{Support for different memory architectures}
+\section{Support for Diverse Memory Architectures}
 \pengxu{Corundum supports NIC-attached DDR or HBM; should extend the }
