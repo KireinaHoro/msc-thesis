@@ -1,30 +1,38 @@
-\chapter{sPIN Revisited} \label{chap:spin-revisited}
-\begin{chapquote}{John Drury Clark, \textit{Ignition!--An Informal History of Liquid Rocket Propellants}}
+\chapter{\acs{spin} Revisited} \label{chap:spin-revisited}
+\begin{chapquote}{John Drury Clark, \textit{Ignition!: An Informal History of Liquid Rocket Propellants}}
 Their guess turned out to be right, but one is reminded of E. T. Bell's remark that the great vice of the Greeks was not sodomy but extrapolation.
 \end{chapquote}
 
 Throughout the process of building the FPsPIN demo, we ...
-\pengcheng{intro: missing parts in the sPIN specification for real-world operation.  Communicated back to the sPIN team and some are already adopted into the current sPIN specification}
+\pengcheng{intro: missing parts in the \ac{spin} specification for real-world operation.  Communicated back to the \ac{spin} team and some are already adopted into the current \ac{spin} specification}
 
-\section{Handler Initialisation} \label{sec:handler-init}
-\pengcheng{How to initialise handler states?  device function that's called once, that is not a handler (no HER meta etc.)}
-\pengcheng{Init with host involvement.  Should be defined in sPIN as extended\_init or something}
+\section{Messaging and Reliability Layer: \acs{slmp}} \label{sec:slmp}
+\pengxu{protocol should be message oriented (instead of \ac{tcp}).  reliability requirements: \ac{sctp}, \ac{dccp}, \ac{udp}}
 
-\section{Streaming Host DMA} \label{sec:streaming-host-dma}
-\pengcheng{we currently have one large host DMA region per execution context.  it may be beneficial if we stream host processing by having the app call mmap multiple times to feed a ring buffer in the kernel/hardware to feed to the HER generator so that we have one buffer per message.  How to formalise this in sPIN?}
+\pengcheng{\ac{slmp} for pluggable reliability}
 
-\section{Packet Matching Rules}
+\pengxu{\ac{slmp} \ac{ack} configuration: head and tail always ACK'ed; window settings; no \ac{ack} for lossy applications (not sure how prevalent in datacenters)}
+\pengcheng{out-of-order delivery: packets that arrive after EOM are dropped.  Send EOM after old ACKs have been received to ensure all segments have been delivered}
 
-\section{Network-layer Protocol Handling} \label{sec:l3-protocol-handling}
-\pengxu{for example incoming ARP probes when using Ethernet/IP}
-\pengxu{Sending packet: share neighbour buffer with host?  Implement ARP stack in sPIN?}
-
-\section{Messaging and Reliability Layer: SLMP} \label{sec:slmp}
-\pengxu{protocol should be message oriented (instead of TCP).  reliability requirements: SCTP, DCCP, SLMP, pure UDP}
-\pengxu{SLMP ACK configuration}
+\pengcheng{flow control window => overflow receiver buffer => packet loss}
+\pengcheng{automatic window size adjustment -- heuristics: packet loss, per-packet \ac{rtt} analysis; outside of scope of this work}
+\pengcheng{flow control window size => receiver-side parallelism (side effect)}
 
 \section{Scheduler Concurrency Control}
 \pengxu{Ability to control degree of parallelism \& locality.  Possible implementation: core mask on the scheduler}
 
+\section{Packet Matching Rules}
+
+\section{Streaming Host \ac{dma}} \label{sec:streaming-host-dma}
+\pengcheng{we currently have one large host \ac{dma} region per execution context.  it may be beneficial if we stream host processing by having the app call mmap multiple times to feed a ring buffer in the kernel/hardware to feed to the \ac{her} generator so that we have one buffer per message.  How to formalise this in \ac{spin}?}
+
+\section{Handler Initialisation \& Host-side Activation} \label{sec:handler-init}
+\pengcheng{How to initialise handler states?  device function that's called once, that is not a handler (no \ac{her} meta etc.)}
+\pengcheng{Init with host involvement.  Should be defined in \ac{spin} as extended\_init or something}
+
+\section{Network-layer Protocol Handling} \label{sec:l3-protocol-handling}
+\pengxu{for example incoming \ac{arp} probes when using Ethernet/IP}
+\pengxu{Sending packet: share neighbour buffer with host?  Implement \ac{arp} stack in \ac{spin}?}
+
 \section{Support for Diverse Memory Architectures}
-\pengxu{Corundum supports NIC-attached DDR or HBM; should extend the }
+\pengxu{Corundum supports \ac{nic}-attached DDR or HBM; should extend the }

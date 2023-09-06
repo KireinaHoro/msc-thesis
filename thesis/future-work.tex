@@ -1,17 +1,24 @@
 \chapter{Future Work}
-\begin{chapquote}{Linus Torvalds, \textit{include/math-emu/double.h, Linux-2.6.12-rc2}}
-Here's a nickel kid.  Go buy yourself a real computer.
+\begin{chapquote}{Linus Torvalds, \emph{linux/arch/alpha/lib/csum\_partial\_copy.c}}
+Don't look at this too closely - you'll go mad.  The things we do for performance..
 \end{chapquote}
 
 \section{Improving $F_{\text{max}}$} \label{sec:improving-fmax}
 
-An important factor in the current FPsPIN E2E latency as shown in the ICMP ping demo is the handler processing latency.  This is due to the PULP cluster being designed for ASIC and not optimised for maximum $F_{\text{max}}$ on FPGAs.  We plan to integrate higher frequency RISC-V cores designed FPGA, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as well as optimise critical paths in the design, to further lower this latency.
+An important factor in the current FPsPIN E2E latency as shown in the ICMP ping demo is the handler processing latency.  This is due to the PULP cluster being designed for ASIC and not optimised for maximum $F_{\text{max}}$ on \ac{fpga}s.  We plan to integrate higher frequency RISC-V cores designed \ac{fpga}, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as well as optimise critical paths in the design, to further lower this latency.
 
 \pengcheng{Explore possible timing relaxations such as increasing the SRAM latency}
 
+\pengcheng{Figure out a sensible PsPIN configuration rather than \Cref{tab:pspin-config}}
+
+\section{Ingress Latency Hiding} \label{sec:ingress-latency-hiding}
+\pengcheng{issue \ac{her} already when we receive the packet, so that the scheduler can make scheduling decisions. enable scheduling only after ingress \ac{dma} finishes}
+\pengcheng{current situation: scheduling can only start after ingress \ac{dma} finishes}
+\pengcheng{works with complicated scheduler \& short handlers}
+
 \section{More Real-world Applications}
 
-We showcased the capabilities of PsPIN handlers through the UDP ping-pong demo.  However, it would be more beneficial to have real-world applications instead of synthetic benchmarks only.  To further explore in this aspect, we are implementing a memcached-style offloaded key-value store application.  We are also working on porting the MPI Datatypes handlers~\cite{Di_Girolamo_2019} to the FPsPIN platform.
+We showcased the capabilities of PsPIN handlers through the \ac{udp} ping-pong demo.  However, it would be more beneficial to have real-world applications instead of synthetic benchmarks only.  To further explore in this aspect, we are implementing a memcached-style offloaded key-value store application.  We are also working on porting the MPI Datatypes handlers~\cite{di_girolamo_network-accelerated_2019} to the FPsPIN platform.
 
 \section{Explore Functionalities from Corundum}
 \pengcheng{NIC-side DRAM, outbound commands to use checksum offloading, PTP timestamps, etc.}

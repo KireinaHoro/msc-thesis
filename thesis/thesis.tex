@@ -73,6 +73,9 @@
 %% Helpful macros.
 \input{macrosetup}
 
+%% Acronyms.
+\input{acronyms}
+
 %% Make document internal hyperlinks wherever possible. (TOC, references)
 %% This MUST be loaded after varioref, which is loaded in 'extrapackages'
 %% above.  We just load it last to be safe.
@@ -91,7 +94,7 @@
 \thesistype{Master Thesis}
 \advisors{Advisors: Prof.\ Dr.\ Torsten Hoefler, Mikhail Khalilov, Timo Schneider}
 \department{Department of Computer Science}
-\date{1 September, 2023}
+\date{September, 2023}
 
 % for figures in background
 \newlength{\twosubht}
@@ -136,6 +139,16 @@
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,zotero}
+
+\chapter*{Acronyms}
+
+\begin{flushleft}
+    \begin{footnotesize}
+        \begin{multicols}{2}
+            \printacronyms[heading=none]
+        \end{multicols}
+    \end{footnotesize}
+\end{flushleft}
 
 \includepdf[pages={-}]{declaration-originality.pdf}
 
