@@ -3,36 +3,123 @@
 Their guess turned out to be right, but one is reminded of E. T. Bell's remark that the great vice of the Greeks was not sodomy but extrapolation.
 \end{chapquote}
 
-Throughout the process of building the FPsPIN demo, we ...
-\pengcheng{intro: missing parts in the \ac{spin} specification for real-world operation.  Communicated back to the \ac{spin} team and some are already adopted into the current \ac{spin} specification}
+While we started this thesis to build an \ac{fpga}-based \ac{spin}-compliant \ac{nic}, the process of building FPsPIN has uncovered various aspects in the \ac{spin} specification that are important in a real-world system but left unspecified.  We have reported the findings in this chapter to the \ac{spin} team and some of them have already been incorporated back into the specification.
 
 \section{Messaging and Reliability Layer: \acs{slmp}} \label{sec:slmp}
-\pengxu{protocol should be message oriented (instead of \ac{tcp}).  reliability requirements: \ac{sctp}, \ac{dccp}, \ac{udp}}
 
-\pengcheng{\ac{slmp} for pluggable reliability}
+The \ac{spin} specification did not impose a fixed list of underlying network protocols; instead, it specifies two \emph{matching modes} of the underlying network.  In \emph{packet matching}, single packets are matched for processing on the packet handler in the same flow; Ethernet would be an example of a network operating in this mode.  \emph{Message matching}, on the other hand, requires the network to provide an abstraction of messages as a stream of multiple packets; they are in turn mapped onto the \emph{head}, \emph{packet}, and \emph{tail} handlers for processing.  Examples of a network operating in message matching mode are \ac{rdma}-style networks such as InfiniBand or the Intel \emph{Omni-Path Architecture} (OPA).
 
-\pengxu{\ac{slmp} \ac{ack} configuration: head and tail always ACK'ed; window settings; no \ac{ack} for lossy applications (not sure how prevalent in datacenters)}
-\pengcheng{out-of-order delivery: packets that arrive after EOM are dropped.  Send EOM after old ACKs have been received to ensure all segments have been delivered}
+\subsection{Motivation}
 
-\pengcheng{flow control window => overflow receiver buffer => packet loss}
-\pengcheng{automatic window size adjustment -- heuristics: packet loss, per-packet \ac{rtt} analysis; outside of scope of this work}
-\pengcheng{flow control window size => receiver-side parallelism (side effect)}
+Although FPsPIN is built on Ethernet, which would seemingly force a \emph{packet matching} implementation, many applications still benefit from the message-oriented abstraction \ac{spin} offers; there would be significant \ac{hpu} and memory overhead to perform flow matching and differentiate the handler code paths in software, as opposed to the \ac{mpq}-based hardware flow matching mechanism introduced in PsPIN.  As a result, it is desirable to \emph{emulate} the message abstraction on top of Ethernet.  In addition, since Ethernet is a \emph{lossy} network\footnote{While \ac{roce} does provide a lossless guarantee on top of Ethernet, it is not supported by Corundum at the time of this thesis and is not trivial to implement in hardware.  We thus consider \ac{roce} irrelevant for this discussion.} but traditional high-performance network applications such as \ac{mpi} expect that messages do not get lost in the network, we also need guarantee on reliable delivery of messages on top.  We formalise the requirements of a suitable protocol in the situation for \ac{spin}:
 
-\section{Scheduler Concurrency Control}
-\pengxu{Ability to control degree of parallelism \& locality.  Possible implementation: core mask on the scheduler}
+% https://tex.stackexchange.com/a/7045/150873
+\begin{enumerate}[label=\protect\circled{\arabic*}]
+    \item \textbf{Arbitrary length messages}: the message matching mode in \ac{spin} requires messages longer than one \ac{mtu}.
+    \item \textbf{\ac{eom} feature in packet header}: \ac{spin} defines a \emph{tail} handler for messages; this is required for a simple matching engine implementation.
+    \item \textbf{Out-of-order segment delivery}: \ac{spin} does not specify a segment delivery order requirement; in fact, in-order delivery will create \emph{Head-of-Line} (HoL) blocking issues that would hurt performance.
+    \item \textbf{Pluggable reliability}: high-performance networking applications require reliable packet delivery; however, since \ac{spin} does not enforce lossless packet delivery, the reliability module should be pluggable and not forced on all applications.
+    \item \textbf{Simple implementation}: the on-path nature of \ac{spin} mandates a simple design that is easy to implement and does not add too much overhead, especially on the receiver side that is offloaded.
+\end{enumerate}
 
-\section{Packet Matching Rules}
+A straightforward approach would be to adopt an existing protocol and implement it in \ac{spin} handlers; candidates for this purpose include \ac{tcp}~\cite{eddy_transmission_2022}, \ac{udp}~\cite{j_user_1980}, \ac{sctp}~\cite{stewart_stream_2007}, \ac{dccp}~\cite{floyd_datagram_2006}, and the more recent QUIC~\cite{iyengar_quic_2021}.  We show in \Cref{tab:protocols-compare} that these protocols does not satisfy the aforementioned requirements of a messaging and reliability layer for an Ethernet-based \ac{spin} \ac{nic} such as FPsPIN, as well as the proposed solution in this thesis for comparison.
 
-\section{Streaming Host \ac{dma}} \label{sec:streaming-host-dma}
-\pengcheng{we currently have one large host \ac{dma} region per execution context.  it may be beneficial if we stream host processing by having the app call mmap multiple times to feed a ring buffer in the kernel/hardware to feed to the \ac{her} generator so that we have one buffer per message.  How to formalise this in \ac{spin}?}
+\begin{table}[tp]
+    \centering
+    \begin{tabular}{cccccc}
+    \toprule
+    Protocol & \circled{1} & \circled{2} & \circled{3} & \circled{4} & \circled{5} \\ \midrule
+     \ac{udp} & \no & - & - & \no & \yes  \\
+     \ac{dccp} & \no & - & - & \partially\footnotemark[1] & \yes \\
+     \ac{tcp} & \yes & \yes & \no & \partially\footnotemark[2] & \no  \\
+     \ac{sctp} & \yes & \yes & \yes & \yes & \no  \\
+     QUIC & \yes & \partially\footnotemark[3] & \yes & \partially\footnotemark[2] & \no \\ \midrule
+     \textbf{\acs{slmp}} & \yes & \yes & \yes & \yes & \yes  \\ \bottomrule
+    \end{tabular}
+    \caption[Comparison of different protocols for FPsPIN]{Comparison of different protocols for reliability and messaging on FPsPIN. \yes: fully supported; \partially: partially supported; \no: not supported.  Notes:
+    \begin{enumerate*}[label=(\arabic*),itemjoin=\quad]
+        \item Only for \ac{ack} segments and not data segments.
+        \item Reliability layer cannot be disabled.
+        \item QUIC requires all packets to be encrypted, meaning that a simple matching engine could not recognise \ac{eom} without decrypting.
+    \end{enumerate*}} \label{tab:protocols-compare}
+\end{table}
 
-\section{Handler Initialisation \& Host-side Activation} \label{sec:handler-init}
-\pengcheng{How to initialise handler states?  device function that's called once, that is not a handler (no \ac{her} meta etc.)}
-\pengcheng{Init with host involvement.  Should be defined in \ac{spin} as extended\_init or something}
+\subsection{The solution}
+
+We developed a thin messaging and reliability layer built on top of \ac{udp}/IP for FPsPIN, which we named \acf{slmp}.  The protocol features a 10-byte header inside the \ac{udp} payload with the following field definition:
+
+\begin{itemize}
+    \item \textbf{Flags} (2 bytes): hosts three packet-level status bits, \emph{\ac{syn}}, \emph{\ac{ack}}, and \emph{\ac{eom}} (\circled{2}).  The remaining bits are reserved for future versions of the protocol.
+    \item \textbf{Message ID} (4 bytes): unique ID of the message.
+    \item \textbf{Offset} (4 bytes): byte offset of the first payload byte in the message.
+\end{itemize}
+The message ID and offset fields together implement \circled{1} up to a message size of 4 GB, limited by the 4-byte offset field in the \ac{slmp} packet header.  We believe that this is a sensible limitation and most applications would not generate messages larger; for applications that require larger messages, we could adjust the size of the offset field in a case-by-case fashion.  Although the offset field maintains a order among all the segments of a message, we do not implement any in-order delivery guarantees (\circled{3}).
+
+A possible alternative for the offset field is to use a packet sequence number instead of a byte offset.  This is a design choice made to accomodate the \ac{slmp} file transfer and \ac{mpi} datatypes applications we will introduce in \Cref{sec:demos}; these applications process incoming segments according to their byte offset in the whole stream.   Therefore, by storing the offset number directly in the \ac{slmp} header, we eliminate the need to keep protocol states on the receiver, allowing a fully stateless receiver for handling the protocol (\circled{5}).
+
+We handle the pluggable reliability requirement (\circled{4}) through the \ac{syn} and \ac{ack} bits in the flags field in the \ac{slmp} header.  The action rule for the receiver is simple: each packet that has a \ac{syn} bit set in the header needs to be \ac{ack}'ed by sending back the same header with no payload.  The sender decides on what reliability mode the protocol operates in.  For no guarantee at all, the sender omits the \ac{syn} bit for all packets.  For a guarantee of message delivery but not individual segments, the sender sets \ac{syn} on the first and last packets of the message.  For a guarantee of every single segment, the sender sets \ac{syn} on all packets it transmits.  We do not implement retransmission for \ac{slmp} at the moment for simplicity, but it should be easy to add since our \ac{ack}s carry the message ID and segment offset and thus would allow the sender to identify a lost segment.
+
+\subsection{\acs{slmp} flow control} \label{sec:slmp-fc}
+
+If the sender would transmit packets too fast to the receiver, the receiver would be overwhelmed by incoming packets before it had time to process them; packets would be dropped once the receive buffer is completely filled.  \emph{Flow control} throttles the sender to make sure that the receiver is not overwhelmed.  Generally speaking for maximum throughput, the sender needs to first fill up the receiver's buffer at a higher send rate, then lower the rate to the processing speed of the receiver to maintain the occupation rate of the receiver buffer in order to saturate the receiver's processing power.
+
+There are two modes of flow control in \ac{slmp}, depending on the reliability configuration selected.  When the sender operates without reliable packet delivery in the form of \ac{ack}s from the receiver, a heuristic \ac{ipg} is chosen based on the workload, receiver's capability, as well as possible buffer state reports from the receiver (see \Cref{sec:telemetry-introspection} for more details).  This form of flow control requires almost no collaboration from the receiver and can be implemented fully on the sender side.  However, a practical configuration would fix the \ac{ipg} and thus the sending rate, which must be equal to or lower than the receiver processing speed for long term stable operation; this would under-utilises the receive buffer and result in the receiver waiting for data, hurting throughput.
+
+A well-known mechanism that originated from \ac{tcp} but found its way into most flow control schemes is a \emph{flow control window}\footnote{This is called the \emph{sliding window} in \ac{tcp} due to the additional in-order delivery requirement.}.  The sender maintains a fixed window of packets that has not yet been \ac{ack}'ed by the receiver and would only send when the window has free space to fit a new packet, allowing the sender to automatically throttle down to the speed of the receiver after the window is filled.  Assuming constant sender and receiver speed $v_\text{Send}$ and $v_\text{Recv}$, we can calculate the ideal window size $S_\text{Wnd}$ for a receiver buffer size $S_\text{Recv}$:
+
+\begin{align}
+t_\text{Fill} &= \frac{S_\text{Recv}}{v_\text{Send} - v_\text{Recv}} \\
+S_\text{Wnd} &= t_\text{Fill} \cdot v_\text{Send} \\
+&= S_\text{Recv} \cdot \frac{v_\text{Send}}{v_\text{Send} - v_\text{Recv}}
+\end{align}
+The sender window approach to flow control still requires the window size to be determined in some manner.  For simplicity in implementation, we assume the suitable window size is relatively fixed for each \ac{slmp} conversation and let the user specify the window size manually.  We discuss a possible future direction of \emph{adaptive} window selection in \Cref{sec:slmp-fc-future-work}.
+
+An interesting side-effect of allowing explicit control of the flow control window size is that, by setting the window size to 1 packet, the sender can serialise packet processing on the receiver side, only sending the next packet of the message after receiving \ac{ack} for the previous one.  While doing this severely limits the top throughput available, the serialisation guarantee is important since \ac{spin} did not specify any concurrency control mechanism on the scheduler level (discussed later in \Cref{sec:sched-concurrency-ctrl}).  We use this method to avoid \emph{packet-level parallelism} for the \ac{mpi} Datatypes demo application in \Cref{sec:mpi-datatypes-demo}.
+
+\section{Telemetry} \label{sec:telemetry-introspection}
+
+The ability to measure the performance of a system is crucial to further improve it.  While the current \ac{spin} specification formalised performance-related events to be delivered to the host for further analysis, this is vastly different from the common practice of implementing \emph{performance counters} for detailed system-level inspection.  Therefore, we call for a general interface of host access to various implementation-defined performance counters in hardware, as well as user-controllable counters updated from the handler software.
+
+We integrated a prototype of memory-backed general purpose counters for packet handlers in \Cref{sec:sw-lib} to allow intrusive inspection of handler performance in the ping-pong demo in \Cref{sec:demos-ping-pong}.  For low-overhead updates to these user-controllable counters, an implementation should make accurate cycle counters available to user-level handler code.  While we recognise the exposure of accurate timing information is a break of isolation, the current \ac{spin} specification does not handle multi-tenancy yet; we leave this discussion for a possible future work that would explore operating system paradigms on \ac{spin}.
+
+Another compelling use case for telemetry data apart from off-line host performance analysis is for consuming in the \ac{spin} \ac{nic} itself, better known as \emph{introspection}.  One use case would be for the scheduler to have access to the handler execution time counter for fair scheduling between multiple execution contexts.  Another possible use case is for a dedicated management core for handling L3 protocols (\Cref{sec:l3-protocol-handling}) to implement explicit buffer state notification as described in \Cref{sec:slmp-fc-future-work}.
+
+\section{Scheduler Concurrency Control} \label{sec:sched-concurrency-ctrl}
+
+The current \ac{spin} scheduler enforces the dependency between packets in a message w.r.t.\ the three categories of packet handlers: the \emph{head} handler is guaranteed to be scheduled before all \emph{packet} handlers, and the \emph{tail} handler is guaranteed to be scheduled after them; the packet handlers will be scheduled in parallel if possible.  In some use cases however, the packet processing routine may require serial execution; the \ac{mpi} Datatypes demo application we will introduce in \Cref{sec:mpi-datatypes-demo} is an example.
+
+With the current \ac{spin} specification, the only viable synchronisation primitive is \emph{spinlocks} that would allow one \ac{hpu} into the critical section for serial processing.  This is far from ideal, since without an effective task switching method, all other \ac{hpu}s will busy-loop at the spinlock, effectively reducing the number of \ac{hpu}s down to one.  A workaround currently used by the \ac{mpi} Datatypes demo in \Cref{sec:mpi-datatypes-demo} is to force the \ac{slmp} flow control window to 1 packet, effectively requiring \ac{ack} on every packet and thus serialising packet processing.  Such a workaround is still not ideal, since such a small window size would mean that the \ac{hpu} would always have to idle for one \ac{rtt} plus the sender latency for one packet before it can start processing the next packet.  It also forces the developer to put the per-message state in the \emph{globally-shared} L2 memory, since there is no guarantee which \ac{hpu} the next packet will be scheduled to, making it impossible to use the \emph{cluster-local} L1 memory.
+
+We propose the addition of \emph{core masks} to all \ac{spin} execution contexts for fine-grained control on the locality and parallelism of \ac{spin} handlers.  With the current FPsPIN architecture, the core masks are installed into the \ac{her} generator and copied into the \ac{her} to the scheduler.  The scheduler can then schedule the packet on the subset of cores specified by the core mask in the \ac{her}.  This design can support the use case of serially scheduled handlers by programming a mask that contains one single core; \emph{message-level parallelism} can be achieved by installing multiple otherwise identical execution contexts that have different core masks.  Another possible use case is to specify a core mask of all cores in one cluster to allow the shared states to be stored completely in the cluster-local L1 memory.
 
 \section{Network-layer Protocol Handling} \label{sec:l3-protocol-handling}
-\pengxu{for example incoming \ac{arp} probes when using Ethernet/IP}
-\pengxu{Sending packet: share neighbour buffer with host?  Implement \ac{arp} stack in \ac{spin}?}
+
+So far, \ac{spin} assumes that the packet handlers only process the application payloads carried by the underlying network protocol.  However, as we have shown in \Cref{sec:slmp}, extra protocol-layer processing is required for a lossy underlying network like Ethernet.  While in some situations protocol handling itself is the main offloaded workload (e.g.\ accelerating QUIC), we recognise that most of the \ac{spin} applications care more about the actual payload instead of details in the protocol itself.  Examples of such protocol-level handling include running \ac{arp} for outgoing packets, handling connection setup and teardown in \ac{tcp}, and sending the explicit buffer state messages in \ac{slmp}.
+
+One approach to this issue makes use of the \emph{bypass} feature of the matching engine.  The user can configure the matching engine to pass incoming protocol control packets to the host for handling, possibly updating relevant states in the meantime.  Examples where this approach would work include \ac{arp} responses, in which the host updates the IP neighbour table and sends back the \ac{arp} response, and \ac{tcp} connection setups and teardowns, where the host handles packets that have the \ac{syn} or FIN bit set.  This approach would not work very well for \ac{nic}-initiated actions (e.g.\ an active \ac{arp} \emph{query} for an outgoing packet from the \ac{spin} \ac{nic}) as well as protocol messages on the hot path (e.g.\ the buffer state notification of \ac{slmp}).
+
+An alternative approach is to introduce a dedicated system-level coprocessor for handling such protocol requests.  This coprocessor would handle network-layer control-path tasks, freeing the \ac{hpu}s from these.  It would take requests from the \ac{hpu}s through a mailbox-like interface, e.g.\ to run an \ac{arp} query or setup a \ac{slmp} or \ac{tcp} connection with a remote endpoint.  It could also run local periodic tasks such as sending back telemetry data to its link partner, or take action on specific protocol control messages forwarded from the scheduler.  The coprocessor would also be crucial for potential \emph{flow spilling} to the host when the \ac{spin} \ac{nic} is overloaded.
+
+\section{Handler Initialisation} \label{sec:handler-init}
+
+Complicated applications may require dynamic initialisation of application-level states on the \ac{nic} memory.  However, the current \ac{spin} specification would start scheduling packets to execution contexts as soon as they are installed, resulting in a race condition.  However, since the installation of an execution context on the host would also allocate \ac{nic} memory windows and set up memory protection, it is required before the host can actually perform initialisation.
+
+A potential solution is to separate the \emph{installation} and \emph{activation} of execution contexts.  The installation of an execution context would arm all relevant hardware modules, allocate memory windows, and set up memory protection; the activation actually enables the respective matching rule on the matching engine for packets to arrive and get scheduled.  The actual initialisation can happen on either the host (through \ac{nic} memory access) or as a special function in the handler image to run on a \ac{hpu}.
+
+\section{Host-side Activation}
+
+So far \ac{spin} has only been formalised for offloading packet processing tasks on a receiver; although~\cite{di_girolamo_network-accelerated_2019} contemplated a possible \ac{spin}-Out implementation that would allow the host to offload sending tasks e.g.\ in \emph{AllReduce} to a \ac{spin} \ac{nic}, the specification did not formalise on how such an execution context would be defined.  We propose \emph{host-activated} execution contexts that are triggered via a special host-initiated event.  With the FPsPIN architecture, this can be implemented via adding extra configuration registers to the \ac{her} generator to inject a \ac{her} whenever the host wants to invoke the execution context.  To avoid confusion, such an execution context should always have the corresponding matching rule set to \emph{never} such that it never gets invoked from incoming packets.
+
+\section{Alternative Host \ac{dma} Interface} \label{sec:streaming-host-dma}
+
+\ac{spin} specifies the host \ac{dma} facility in a very simple manner: the \ac{hpu}s can read from or write to the exposed flat memory window.  While this abstraction is concise to implement and allows , it is not very helpful for end users of a \ac{spin} \ac{nic}; they would have to implement their own interface on top of this facility.  The fact that \ac{spin} does not specify any memory consistency semantics on the host memory window makes any user implementations non-portable and thus impossible to work with other \ac{spin} implementations.
+
+We developed a simple request/response interface on top of the host \ac{dma} window in FPsPIN as we described in \Cref{sec:sw-lib}; the current design largely resembles a traditional \emph{queue pair} design, allowing the \ac{hpu}s to post requests in the \ac{rq} to the host and the CPU to post responses back to the \ac{hpu}s in the \ac{cq}.  We propose the addition of higher-level \ac{api}s for communication between the host and \ac{spin} \ac{nic}, which would simplify user programs that make use of host \ac{dma} and improve portability.
+
+\begin{comment}
+% Stuff that we don't have time to write about.
+\section{Packet Matching Rules}
 
 \section{Support for Diverse Memory Architectures}
-\pengxu{Corundum supports \ac{nic}-attached DDR or HBM; should extend the }
+\pengxu{Corundum supports \ac{nic}-attached DDR or HBM}
+\end{comment}

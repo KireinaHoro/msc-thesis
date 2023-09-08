@@ -64,13 +64,13 @@ Resource utilisation and timing are very important static insights into \ac{fpga
     \begin{tabular}{ccc}
     \toprule
     \ac{qor} Metric & \multicolumn{2}{c}{Value} \\ \midrule
-    \ac{lut} & 649k & 54.9\% \\
-    \ac{ff} & 499k & 21.1\% \\
+    \ac{lut} & 645k & 54.5\% \\
+    \ac{ff} & 490k & 20.7\% \\
     \ac{bram} & 1141 & 52.8\% \\
     \ac{uram} & 206 & 21.5\% \\
-    \ac{wns} (ns) & \multicolumn{2}{c}{-0.126} \\
-    \ac{tns} (ns) & \multicolumn{2}{c}{-37.958} \\
-    Impl. Time & \multicolumn{2}{c}{7:01:46} \\
+    \ac{wns} (ns) & \multicolumn{2}{c}{-0.057} \\
+    \ac{tns} (ns) & \multicolumn{2}{c}{-9.945} \\
+    Impl. Time & \multicolumn{2}{c}{6:11:15} \\
     \bottomrule
     \end{tabular}
     \caption{\ac{qor} metrics of the hardware implementation of FPsPIN.  The first four entries (\ac{lut}, \ac{ff}, \ac{bram}, \ac{uram}; refer to \Cref{sec:fpga-basics}) denote key resource consumption and the percentage utilisation value on the VU9P device; \ac{wns} and \ac{tns} measure how much the design has failed timing.} \label{tab:design-qor}
@@ -82,7 +82,7 @@ We present three \ac{e2e} demo applications to showcase the real-world programma
 
 \pengcheng{the two pingpong demos are functional demos that exercise different components; slmp file transfer is a synthetic benchmark to measure throughput and show \ac{slmp}-based message boundaries; datatypes show the overlapping, latency, and bandwidth characteristics of a real-world application}
 
-\subsection{Ping-pong}
+\subsection{Ping-pong} \label{sec:demos-ping-pong}
 
 \paragraph{Motivation} We demonstrate the overall system functionality with two classic types of \emph{ping-pong} protocols: \ac{icmp} and \ac{udp}.  With this demo, we exercise the various data-path and control-path components newly introduced in FPsPIN to show their basic functionality.  In addition, we evaluate the system \ac{e2e} \ac{rtt} under simple packet processing workloads to compare with pure-CPU processing.  We further identify \ac{rtt} contributions from different actors in order to evaluate bottlenecks in the system.
 
@@ -102,7 +102,7 @@ An important difference between the \ac{udp} and \ac{icmp} ping protocols is tha
     \caption[Workflow of the ping-pong demo]{Workflow of the two ping-pong applications.  \circled{1}) Normal operation; the cluster processes incoming ping requests and sends back responses (\textbf{FPsPIN}).  \circled{2}) The cluster can optionally choose to forward data to the host application for further processing (\textbf{Host+FPsPIN}).} \label{fig:demo-pingpong}
 \end{figure}
 
-For both \ac{icmp} and \ac{udp} and the three modes of operation, we measure the \ac{e2e} \ac{rtt} of the ping-pong process from the client by running the ping program 20 times, taking 100 measurements in each iteration.  This would take into consideration any possible interference between the ping client and server that would result in variance in the measurement, as well as to allow caches to warm up.  We plot this \ac{e2e} \ac{rtt} with their medians and 95\% confidence intervals calculated with the bootstrap method~\cite{diciccio_bootstrap_1996} in \Cref{fig:pingpong-lat}.  In addition in cases that involve FPsPIN, we measure cycle counts in the handler code to time the mean handler execution time and latency of host processing.  We plot a breakdown of the \ac{e2e} \ac{rtt} in these cases in \Cref{fig:pingpong-breakdown}.
+For both \ac{icmp} and \ac{udp} and the three modes of operation, we measure the \ac{e2e} \ac{rtt} of the ping-pong process from the client by running the ping program 20 times, taking 100 measurements in each iteration.  This would take into consideration any possible interference between the ping client and server that would result in variance in the measurement, as well as to allow caches to warm up.  We plot this \ac{e2e} \ac{rtt} with their medians and 95\% confidence intervals calculated with the bootstrap method~\cite{diciccio_bootstrap_1996} in \Cref{fig:pingpong-lat}.  In addition in cases that involve FPsPIN, we measure cycle counts in the handler code to time the mean handler execution time and latency of host processing.  We plot a breakdown of the \ac{e2e} \ac{rtt} in these cases in \Cref{fig:pingpong-breakdown}.  Please note that the high overhead designated as \emph{Syscall} is due to the lack of a cycle-count register accessible to user-space handler code; we discussed this situation and possible solutions in \Cref{sec:sw-lib} and \Cref{sec:telemetry-introspection}.
 
 \begin{figure}[tp]
     \centering
@@ -113,7 +113,7 @@ For both \ac{icmp} and \ac{udp} and the three modes of operation, we measure the
 \begin{figure}[tp]
     \centering
     \includegraphics{thesis/figures/pingpong-breakdown.pdf}
-    \caption{Breakdown of the \ac{e2e} \ac{rtt} into different categories.  The timeline at the top shows the time-series relationship between the various time components: \emph{Syscall}, time spent reading the cycles counter from trapping into M-mode; \emph{Handler}, time spent executing the packet handlers, excluding waiting for host; \emph{Host Proc.}, time spent waiting for host DMA and processing on the CPU; and \emph{Sender}, time spent on the Ethernet wire and client side.  \emph{Baseline} marks the median \ac{e2e} \ac{rtt} in \textbf{Host} mode.} \label{fig:pingpong-breakdown}
+    \caption{Breakdown of the \ac{e2e} \ac{rtt} into different categories.  The timeline at the top shows the time-series relationship between the various time components (not to scale): \emph{Syscall}, time spent reading the cycles counter from trapping into M-mode; \emph{Handler}, time spent executing the packet handlers, excluding waiting for host; \emph{Host Proc.}, time spent waiting for host DMA and processing on the CPU; and \emph{Sender}, time spent on the Ethernet wire and client side.  \emph{Baseline} marks the median \ac{e2e} \ac{rtt} in \textbf{Host} mode.} \label{fig:pingpong-breakdown}
 \end{figure}
 
 \paragraph{Data interpretation} A key observation we make is that both \textbf{FPsPIN} and \textbf{Host+FPsPIN} performed significantly better than \textbf{Host} for \ac{udp}.  This is mainly due to the packet data in FPsPIN modes not having to get \ac{dma}'ed to host memory, context switch to user-mode on the CPU, and go through the Linux \ac{udp} network stack.  The overhead of the context switch and the \ac{udp} stack can be confirmed with a comparison between \ac{udp} and \ac{icmp} in \textbf{Host} mode, showing a difference of \mytilde{}41 us.  As we see in \Cref{fig:pingpong-breakdown} in \textbf{Host+FPsPIN} for \ac{udp}, our system reliably achieves a \mytilde{}20 us \ac{rtt} advantage over the baseline case even with the added latency from host processing.  In addition, we notice that in all four cases with FPsPIN the \emph{syscall} category occupies 10\mytilde{}20 us in the \ac{rtt}.  As we have previously explained in \Cref{sec:handler-runtime}, this added latency is due to a lack of user-mode accessible cycle counters and should be easily fixed in future work.
@@ -128,23 +128,29 @@ We further observe that the lower frequency that \ac{pulp} cores in FPsPIN run a
 
 \paragraph{Motivation} Apart from synthetic benchmarks like the ping-pong demo we showed in the previous section, we also need to demonstrate the ability of FPsPIN to run real-world \ac{spin} workloads.  \Ac{mpi} Datatypes~\cite{pierce_types_2002} is a popular mechanism for exchanging custom messages over the \ac{mpi} paradigm commonly used in parallel computing.  On the sender side, the datatypes subsystem in \ac{mpi} \emph{serialises} the custom message with non-contiguous memory blocks (in other words, \emph{holes} in between) into a contiguous \emph{streaming} buffer for transmission on the network; on the receiver side, \ac{mpi} \emph{deserialises} the contiguous message back into the non-contiguous messages for the user application.
 
-Previous work on \ac{spin} has ported the \emph{MPICH dataloop}-based single-threaded implementation of MPI Datatypes to \ac{spin} handlers that run on a simulator-based platform~\cite{di_girolamo_network-accelerated_2019}.  By porting these existing \ac{spin} handlers to FPsPIN, we characterise the throughput of \ac{spin} workloads on FPsPIN with different levels of handler complexity on the platform.  In addition, we showcase the ability of FPsPIN to achieve almost perfect \emph{computation/communication overlap} with a compute-heavy CPU workload that runs simultaneously.  Last but not least, since MPI Datatypes requires to send messages of arbitrary length on the network, we demonstrate the operation of the SLMP protocol introduced in \Cref{sec:slmp}.
+Previous work on \ac{spin} has ported the \emph{MPICH dataloop}-based single-threaded implementation of \ac{mpi} Datatypes to \ac{spin} handlers that run on a simulator-based platform~\cite{di_girolamo_network-accelerated_2019}.  By porting these existing \ac{spin} handlers to FPsPIN, we characterise the throughput of \ac{spin} workloads on FPsPIN with different levels of handler complexity on the platform.  In addition, we showcase the ability of FPsPIN to achieve almost perfect \emph{computation/communication overlap} with a compute-heavy CPU workload that runs simultaneously.  Last but not least, since \ac{mpi} Datatypes requires to send messages of arbitrary length on the network, we demonstrate the operation of the SLMP protocol introduced in \Cref{sec:slmp}.
 
 \paragraph{Experiment} We port the handlers in~\cite{di_girolamo_network-accelerated_2019} to the FPsPIN platform.
-A major difference between the original target platform and FPsPIN is the underlying network layer: the handlers were designed for InfiniBand-style networks that offer a \emph{reliable message transport} with arbitrary length support, while FPsPIN runs on top of lossy Ethernet; we have analysed this difference in network-layer guarantees in detail in \Cref{sec:slmp}.  For MPI Datatypes, we encapsulate the serialised buffer in \ac{slmp} messages on the sender side and send back \ac{ack} packets in the handler.  In addition to the \ac{slmp} encapsulation, we modify the original handlers to call correct host DMA and host notification functions offered by the FPsPIN runtime. 
+A major difference between the original target platform and FPsPIN is the underlying network layer: the handlers were designed for InfiniBand-style networks that offer a \emph{reliable message transport} with arbitrary length support, while FPsPIN runs on top of lossy Ethernet; we have analysed this difference in network-layer guarantees in detail in \Cref{sec:slmp}.  For \ac{mpi} Datatypes, we encapsulate the serialised buffer in \ac{slmp} messages on the sender side and send back \ac{ack} packets in the handler.  In addition to the \ac{slmp} encapsulation, we modify the original handlers to call correct host DMA and host notification functions offered by the FPsPIN runtime. 
 
-Due to the single-threaded nature of the \emph{dataloop} implementation of MPI Datatypes, we are unable to implement \emph{packet-level parallelism} and are thus forced to use a sender window size of 1 packet to ensure serialised packet processing; this has severe performance implications as we discussed in \Cref{sec:slmp}.  To make use of all the 16 \ac{hpu}s on FPsPIN, we implement \emph{message-level parallelism}, sending multiple messages in parallel.  The handler function stores all per-message states in the shared L2 handler memory and selects the correct per-message state according to the \ac{slmp} message ID.  We evaluate the \ac{e2e} bandwidth of datatype handlers on FPsPIN in comparison to the reference MPICH datatypes implementation on CPU with varying degrees of parallelism in \Cref{fig:datatypes-tput}.
+Due to the single-threaded nature of the \emph{dataloop} implementation of \ac{mpi} Datatypes, we are unable to implement \emph{packet-level parallelism} and are thus forced to use a sender window size of 1 packet to ensure serialised packet processing; this has severe performance implications as we discussed in \Cref{sec:slmp}.  To make use of all the 16 \ac{hpu}s on FPsPIN, we implement \emph{message-level parallelism}, sending multiple messages in parallel.  The handler function stores all per-message states in the shared L2 handler memory and selects the correct per-message state according to the \ac{slmp} message ID.  We evaluate the \ac{e2e} bandwidth of two different datatype handlers on FPsPIN in comparison to the reference MPICH datatypes implementation on CPU with varying degrees of parallelism in \Cref{fig:datatypes-tput}.  The structures of the two datatype workloads are shown in \Cref{fig:datatypes-structure}. 
+
+\begin{figure}[tp]
+    \centering
+    \includegraphics[width=.8\textwidth]{thesis/figures/datatypes-structure.pdf}
+    \caption{} \label{fig:datatypes-structure}
+\end{figure}
 
 \begin{figure}[tp]
     \centering
     \includegraphics{thesis/figures/datatypes-tput.pdf}
-    \caption{Comparison of median datatypes \ac{e2e} throughput between the MPICH reference CPU implementation (baseline) and on FPsPIN.  We run the baseline on both vanilla Corundum i.e.\ without PsPIN as well as FPsPIN to show any potential slow-downs to normal NIC operation from introducing PsPIN.  The error bars in black show the 95\% confidence interval.} \label{fig:datatypes-tput}
+    \caption{Comparison of median datatypes \ac{e2e} throughput between the MPICH reference CPU implementation (baseline) and on FPsPIN.  We run the baseline on both vanilla Corundum i.e.\ without PsPIN as well as FPsPIN to show any potential slow-downs to normal NIC operation from introducing PsPIN.  The error bars in black show the 95\% confidence interval from 20 measurements.} \label{fig:datatypes-tput}
 \end{figure}
 
 To demonstrate the \emph{computation/communication overlap} capability of FPsPIN, we run double-precision \ac{gemm} from OpenBLAS~\cite{xianyi_model-driven_2012} on the CPU to simulate a compute-heavy workload that runs simultaneously with the datatypes deserialisation on FPsPIN.  Since the CPU fetches notifications from FPsPIN in poll mode (\Cref{sec:sw-lib}), it is the best to poll as few times as possible to avoid wasting CPU cycles that could otherwise be running the computation workload.  The regularity of \ac{hpc} workloads, which allows \emph{estimating} the time a communication task takes to finish.  For a meaningful evaluation of computation/communication overlap, we \emph{tune} the \ac{gemm} size for a \emph{balanced} setup between computation and communication, i.e.\ to minimise both datatypes latency and polling overhead.  We show in \Cref{fig:datatypes-tuning-goal} the two opposites of polling frequency, both of which hurts the performance of either the datatypes or \ac{gemm}.  By tuning the size of a single invocation of \ac{gemm}, we find the sweet spot to balance between these two situations.  We report the \emph{overlap ratio} in \Cref{fig:datatypes-overlap}, defined as the following:
 
 \[
-\text{OverlapRatio} = \frac{T_{\text{GEMM}}}{T_{\text{GEMM}} + T_{\text{Poll}}}
+r_\text{Overlap} = \frac{T_{\text{GEMM}}}{T_{\text{GEMM}} + T_{\text{Poll}}}
 \]
 
 \begin{figure}[tp]
@@ -171,32 +177,32 @@ In order to have correlated timing measurements between datatypes processing and
 
 \subsection{\acs{slmp} file transfer}
 
-\paragraph{Motivation} As we have seen in the MPI datatypes benchmark in \Cref{sec:mpi-datatypes-demo}, the throughput of packet processing depends highly on the complexity of the packet handlers.  It is thus difficult to evaluate the real throughput capacity of FPsPIN with the datatypes handlers due to its various implementation limits.  In this demo application, we show the throughput of FPsPIN through a simple file transfer: the sender transmits a file encapsulated in \ac{slmp} and the receiver posts the segments to the host CPU for storing.  With no requirement of serialised access to per-message states, we evaluate the full potential of \emph{packet-level parallelism} of FPsPIN.
+\paragraph{Motivation} As we have seen in the \ac{mpi} datatypes benchmark in \Cref{sec:mpi-datatypes-demo}, the throughput of packet processing depends highly on the complexity of the packet handlers.  It is thus difficult to evaluate the real throughput capacity of FPsPIN with the datatypes handlers due to its various implementation limits.  In this demo application, we show the throughput of FPsPIN through a simple file transfer: the sender transmits a file encapsulated in \ac{slmp} and the receiver posts the segments to the host CPU for storing.  With no requirement of serialised access to per-message states, we evaluate the full potential of \emph{packet-level parallelism} of FPsPIN.
 
-The MPI datatypes demo forced a flow control window size of 1 packet due to the serialisation requirements.  However, \ac{slmp} as discussed in \Cref{sec:slmp} offers flexible window size and sender parallelism configurations.  We evaluate the performance trade-offs of different sender configurations and identify the best configuration for other applications.  In addition, we explore the consequences on packet processing from unreasonable flow control configurations.
+The \ac{mpi} datatypes demo forced a flow control window size of 1 packet due to the serialisation requirements.  However, \ac{slmp} as discussed in \Cref{sec:slmp} offers flexible window size and sender parallelism configurations.  We evaluate the performance trade-offs of different sender configurations and identify the best configuration for other applications.  In addition, we explore the consequences on packet processing from unreasonable flow control configurations.
 
-\paragraph{Experiment} We implement packet handlers that, upon receiving a \ac{slmp} segment, \ac{dma} the segments to the correct offset in the host memory according to the \ac{slmp} message offset field in the packet header.  After processing the last packet with the \ac{eom} bit, the tail handler posts a notification to the host application, which then saves the host \ac{dma} buffer into a file.  The sender transmits the file with the \ac{slmp} and records the elapsed time for throughput calculation.  We report the throughput progressions with diverse file sizes and sender configurations in \Cref{fig:slmp-tput}.
+\paragraph{Experiment} We implement packet handlers that, upon receiving a \ac{slmp} segment, \ac{dma} the segments to the correct offset in the host memory according to the \ac{slmp} message offset field in the packet header.  After processing the last packet with the \ac{eom} bit, the tail handler posts a notification to the host application, which then saves the host \ac{dma} buffer into a file.  The sender transmits the file with the \ac{slmp} and records the elapsed time for throughput calculation; we use an OpenMP-based multi-threaded version of the \texttt{slmp\_sendmsg} function offered in \texttt{libfpspin} (\Cref{sec:sw-lib}).  We report the throughput progressions with diverse file sizes and sender configurations in \Cref{fig:slmp-tput}.
 
-\begin{figure}[tp]
+\begin{figure}[t]
     \centering
     \includegraphics{thesis/figures/slmp-tput.pdf}
-    \caption{Median throughput of both protocols across different sender-side window size and parallelism configurations.  The top left plot shows the best throughput across different window sizes; the top right across different thread counts; the bottom two across different file lengths.  Each data point comes from 20 successful \ac{slmp} message deliveries; the error bars in black show the 95\% confidence interval.} \label{fig:slmp-tput}
+    \caption{Median throughput of both protocols across different sender-side window size and parallelism configurations.  The top left plot shows the best throughput across different window sizes; the top right across different thread counts; the bottom two across different file lengths.  Each data point comes from 20 successful \ac{slmp} message deliveries; the error bars in black show the 95\% confidence interval.  The baseline IPerf3 line is the same as in \Cref{fig:datatypes-tput}.} \label{fig:slmp-tput}
 \end{figure}
 
-As we discussed in \Cref{sec:slmp}, a flow control window too big will result in packet loss at the receiver and thus a failure in message delivery.  To explore how the flow control settings affect message delivery, we plot the failure rate of message delivery at different sender settings in \Cref{fig:slmp-loss}.  For each configuration, we run the sender for at most 200 times in an attempt to gain 20 successful runs in total.
+As we discussed in \Cref{sec:slmp}, a flow control window too big will result in packet loss at the receiver and thus a failure in message delivery.  To explore how the flow control settings affect message delivery, we plot the failure rate of message delivery at different sender settings in \Cref{fig:slmp-loss}.  For each configuration, we try to acquire 20 successful runs for a consistent definition of the 95\% confidence interval plotted in \Cref{fig:slmp-tput}; we give up if that takes more than 200 attempts.
 
-\begin{figure}[tp]
+\begin{figure}[t]
     \centering
     \includegraphics{thesis/figures/slmp-loss.pdf}
-    \caption{Failure rate of \ac{slmp} transmissions under different window size and sender thread count configurations.} \label{fig:slmp-loss}
+    \caption{Failure rate of \ac{slmp} transmissions under different window size and sender thread count configurations.  We plot the maximum failure rate acquired with each sender configuration across all file lengths.} \label{fig:slmp-loss}
 \end{figure}
 
-\paragraph{Data interpretation}
+\paragraph{Data interpretation} We observe from \Cref{fig:slmp-tput} that the \ac{e2e} throughput of \ac{slmp} file transfers increase along with the length of the file transfer; this is due to the fact that many components in the system require time to setup and spool up in performance, e.g.\ sender threads and caches, receiver \ac{hpu}s, etc.  The peak throughput \textbf{5.97 Gbps} is achieved with a sender window size of 1024 and 2 threads at a file length of 50 MiB.  This is in turn \textbf{72\%} of the mean IPerf3 throughput of 8.3 Gbps.  Taking the fact that IPerf3 simply drops the incoming packets without further action, we recognise that this is a reasonable performance number for the \ac{slmp} file transfer workload.
 
-\pengcheng{window size should go only till 256, the number of 1536-byte slots in the packet allocator}
-\pengcheng{window size close to 256: loss at large messages? possible cause: lag between \ac{ack} sent and actual reclaim of packet buffer}
+We notice that the throughput benefits from a larger sender flow control window size in general.  This matches the theoretical analysis of the flow control window in \Cref{sec:slmp}: a smaller flow control window would force the sender to wait for an \ac{ack} sooner than the receive buffer is exhausted, causing the receiver to idle in waiting for packets.  In addition, we observe in \Cref{fig:slmp-tput} (bottom right) that a larger window needs more than one sender thread to achieve the highest throughput possible.  This however does not mean that the more number of sender threads the better, since multiple threads have higher costs to setup and synchronise; the best throughput across most window sizes is achieved with 2 threads.
 
-\paragraph{Conclusion}
+Although a larger window will result in a good sender bandwidth, this does not always result in a high \ac{e2e} throughput.  We note from \Cref{fig:slmp-tput} (bottom left) that throughput stops increasing beyond a window size of 256 packets; \Cref{fig:slmp-loss} shows further that the failure rate skyrockets with a higher window size (1024) and more than one threads (such that the sender can actually saturate the window).  Since \ac{spin} targets mostly datacenter networks that require reliable message delivery, an oversized flow control window would not be useful.
 
-\pengcheng{parallel file receival - e2e bandwidth measurement}
-\pengcheng{different operating modes (w/ and w/o \ac{ack} per msg or per packet) of \ac{slmp}}
+\paragraph{Conclusion} The \ac{slmp} file transfer demo application demonstrates the throughput capabilities of FPsPIN under synthetic load, showing throughput close to the IPerf3 baseline case.  Comparing that with the \ac{mpi} Datatypes demo in \Cref{sec:mpi-datatypes-demo}, we conclude that better-optimised handlers and a faster \ac{hpu} core would result in higher throughput than we showed in the current implementation.  The results promise a more performant FPsPIN with a higher $F_\text{max}$, as we will discuss in \Cref{sec:improving-fmax}.
+
+We evaluated the performance implications from the \ac{slmp} protocol introduced in \Cref{sec:slmp}, confirming the importance of an appropriate flow control window size to \ac{e2e} throughput.  The tedious process of tuning the window size for highest throughput makes a case for protocol-level automatic tuning of the flow control window, as we will discuss in \Cref{sec:slmp-fc-future-work}.

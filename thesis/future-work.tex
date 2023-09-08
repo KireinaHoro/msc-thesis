@@ -3,6 +3,8 @@
 Don't look at this too closely - you'll go mad.  The things we do for performance..
 \end{chapquote}
 
+While FPsPIN is relatively complete in terms of functionality, many design choices have been made due to the time constraints of this thesis project.  We describe the possible improvements for future work in this chapter.
+
 \section{Improving $F_{\text{max}}$} \label{sec:improving-fmax}
 
 An important factor in the current FPsPIN E2E latency as shown in the ICMP ping demo is the handler processing latency.  This is due to the PULP cluster being designed for ASIC and not optimised for maximum $F_{\text{max}}$ on \ac{fpga}s.  We plan to integrate higher frequency RISC-V cores designed \ac{fpga}, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as well as optimise critical paths in the design, to further lower this latency.
@@ -11,10 +13,22 @@ An important factor in the current FPsPIN E2E latency as shown in the ICMP ping 
 
 \pengcheng{Figure out a sensible PsPIN configuration rather than \Cref{tab:pspin-config}}
 
+\section{Advanced Flow Control in \acs{slmp}} \label{sec:slmp-fc-future-work}
+\pengcheng{window size auto tune; make use of packet loss \& receiver buffer state statistics}
+\pengcheng{retransmission in case of loss; proper window instead of simple \ac{ack} counting}
+
+For more complicated use cases, an \emph{adaptive} mechanism that automatically determines the best window size may be necessary.  Such a mechanism would make the decision to increase or decrease the flow control window based on various metrics such as per-packet \ac{rtt}, loss rate (with retransmission), or explicit receiver buffer state messages.  A proper exploration of such a mechanism is out of the scope of this thesis.
+
 \section{Ingress Latency Hiding} \label{sec:ingress-latency-hiding}
 \pengcheng{issue \ac{her} already when we receive the packet, so that the scheduler can make scheduling decisions. enable scheduling only after ingress \ac{dma} finishes}
 \pengcheng{current situation: scheduling can only start after ingress \ac{dma} finishes}
 \pengcheng{works with complicated scheduler \& short handlers}
+
+\section{Host Notification Queue Pair} \label{sec:host-dma-qp}
+
+The current flag-based host notification mechanism in FPsPIN largely resembles a traditional \emph{queue pair} between the host CPU and the \ac{spin} \ac{nic}, with the limitation of only allowing one notification from each \ac{hpu} at a time.  While this limitation is acceptable with the synchronous host notification interface as discussed in \Cref{sec:sw-lib}, it would not be with asynchronous host notifications since newer notifications would then overwrite older ones that are not yet consumed by the host.  It is relatively easy to adapt the current implementation by adding hardware \ac{rq} and \ac{cq}s between the CPU and \ac{hpu}s.  The change would not require changing the software interface, since they already use \emph{push/pop} semantics.
+
+Another potential improvement is to allow \emph{streaming mapping} of the host \ac{dma} area.  One common use of the host notification interface is to notify the host about a complete message constructed in the host \ac{dma} area.  However, the host application will be limited in memory access performance to the \ac{dma} area due to the current multiple-use \ac{dma} mapping.  We could implement another ring buffer that hands out \emph{oneshot} buffers for the handlers to \ac{dma} into.  The hardware needs to be changed to add the ring buffer and to allow the \ac{her} generator to pop and use a new buffer from the ring buffer for every new message; the buffer would be returned to the host to be deallocated later when the \ac{hpu} sends a host notification.
 
 \section{More Real-world Applications}
 
