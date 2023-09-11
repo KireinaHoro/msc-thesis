@@ -1,14 +1,112 @@
 \chapter{Reproducing the Results}
+\begin{chapquote}{John Ciardi, \textit{Good Words to You}}
+Alchemy. The link between the immemorial magic arts and modern science. Humankind’s first systematic effort to unlock the secrets of matter by reproducible experiment.
+\end{chapquote}
 
-\pengcheng{Steps to reproduce and evaluate the results each application (pingpong, icmp ping, slmp file transfer, datatypes)}
+We present in this appendix how to reproduce the artefacts as well as performance measurements that we have presented in \Cref{chap:eval}.  Most procedures that would take more than one command to finish have a script; we therefore do not go into too much detail explaining the internals of the scripts.  The following repositories have been used throughout the project:
+\begin{itemize}
+    \item \texttt{pspin}: \texttt{9225886259481853dac0a69c20c7b1ac0b74ce36}
+    \item \texttt{corundum}: \texttt{5351b5e2a66bc8d96b4cc49680baf28916fa1838}
+\end{itemize}
+Note that \texttt{corundum} checks in \texttt{pspin} as a submodule.  The following steps assume that the submodule is set up correctly when cloning the repository.
+
+\section{Building the System}
+
+\paragraph{Hardware} To build the \ac{fpga} bitstream to be flashed onto the VCU1525 board:
+
+\begin{minted}{console}
+$ cd corundum/fpga/mqnic/VCU1525/fpga_100g/fpga_pspin/
+$ source <path to vivado>/settings64.sh
+$ make
+\end{minted}
+This will take roughly 6 to 7 hours.  The resulting \texttt{fpga.bit} is then ready to be flashed onto the \ac{fpga} with Vivado.  Note that you would need to reboot the host PC which the \ac{fpga} board was plugged into to get the \ac{bar}s correctly recognised and allocated by Linux.
+
+You can read the synthesis log or open the resulting project in Vivado to read out the timing and resource utilisation information as presented in \Cref{sec:hw-analysis}.
+
+You will need a \ac{dac} cable to connect the two Ethernet ports on the \ac{fpga} board to proceed; see \Cref{sec:eval-setup} for more explanation.
+
+\paragraph{Software} The kernel modules can be built and installed with:
+
+\begin{minted}{console}
+$ cd corundum/fpga/app/pspin/modules/mqnic
+$ make && sudo make install
+$ cd ../mqnic_app_pspin
+$ make && sudo make install
+\end{minted}
+Once they are installed, they will be loaded automatically if the system boots with an appropriate bitstream programmed to the \ac{fpga}, or if you rescan the \ac{pcie} bus manually:
+
+\begin{minted}{console}
+$ sudo bash -c 'echo 1 > /sys/bus/pci/<pcie id>/remove'
+$ sudo bash -c 'echo 1 > /sys/bus/pci/rescan'
+\end{minted}
+This is useful if you reprogrammed the \ac{fpga} with a new bitstream and need to reload the kernel driver.
+
+The user-space library \texttt{libfpspin.a} will be compiled automatically when you compile any of the utilities that depend on it.
+
+\paragraph{Utilities} Most of the utilities shipped with FPsPIN are scripts that do not need compiling; however, the Python scripts require setting up a \texttt{virtualenv} and installing all the dependencies:
+
+\begin{minted}{console}
+$ cd $HOME
+$ python3 -m venv fpspin
+$ source fpspin/bin/activate
+$ cd corundum/fpga/app/pspin/utils
+$ pip install -r requirements.txt
+$ make # compile the mem.c utility
+\end{minted}
+
+The \texttt{mqnic-fw} utility offered by Corunudm is useful for programming the \ac{spi} configuration flash on the \ac{fpga} board, booting the device from the configuration flash, or performing a host reset of the entire \ac{fpga}.  To build it (and other utilities from Corundum):
+
+\begin{minted}{console}
+$ cd corundum/utils
+$ make
+\end{minted}
+
+\section{Running the Experiments}
+
+To compile the FPsPIN handlers, you need the \ac{pulp} RISC-V toolchain at \url{https://github.com/pulp-platform/pulp-riscv-gnu-toolchain}.  Clone this and follow their instructions to install; after finishing you should have \texttt{riscv32-none-elf-gcc} in your \texttt{PATH} available. 
+
+The four experiments, \texttt{icmp\_ping}, \texttt{udp\_ping}, \texttt{slmp}, and \texttt{datatypes}, follow roughly the same procedure to acquire the data and plot them:
+
+\begin{minted}{console}
+$ cd corundum/fpga/app/pspin/deps/pspin/examples/<experiment>
+$ ./run_eval.sh
+$ ./plot.py
+\end{minted}
+
+The datatypes and \ac{slmp} benchmark \texttt{run\_eval.sh} scripts take arguments to resume the experiment from a specific setup if the experiment is interrupted.  Read the script to get more information on this.
+
+In the datatypes experiment, the machine may sporadically freeze due to quirks mentioned in \Cref{sec:quirks} and may require the machine to be reset.  You can use the restart functionality built into the run script to restart parts of the experiment.
 
 \chapter{Debug Facilities}
 \begin{chapquote}{Greg Kroah-Hartman, \textit{Driving Me Nuts--Things You Never Should Do in the Kernel}}
 In conclusion, reading and writing a file from within the kernel is a bad, bad thing to do. Never do it. Ever. Both modules from this article, along with a Makefile for compiling them, are available from the Linux Journal FTP site, but we expect to see no downloads in the logs. And, I never told you how to do it either. You picked it up from someone else, who learned it from his sister's best friend, who heard about how to do it from her coworker.
 \end{chapquote}
 
-in addition to the PsPIN Verilator model and traces...
-\pengcheng{interactive verilator simulation}
-\pengcheng{M-mode exception handler on PsPIN and register dump}
-\pengcheng{read\_mem tool on real hardware}
-\pengcheng{pstore and netconsole for kernel panic}
+A complex system like FPsPIN requires extensive debugging facilities for diagnosing various issues.  We briefly describe the mechanisms we have developed for this purpose.
+
+\section{Hardware}
+
+One important facility to debug the internals of PsPIN is the Verilator cycle-accurate simulation.  While this was already available from~\cite{di_girolamo_pspin_2021}, we implemented a new \emph{interactive} simulation mode that allows the simulation driver to take action when it has received an outgoing packet from PsPIN.  This is used to simulate the \ac{slmp} flow control window in the datatypes application.
+
+In case a suspected hardware issue is difficult to reproduce in simulation (due to timing or the simulation taking too long), you can use the Xilinx \ac{ila} to inspect signals in the design after it has been implemented and programmed onto the \ac{fpga}.  Please refer to the Xilinx user manual UG936~\cite{noauthor_vivado_2020} for more details.
+
+\section{Software}
+
+A basic facility for debugging handlers on FPsPIN is with the \emph{stdout capture} as we have introduced in \Cref{sec:sw-lib}.  The programmer can simply invoke \texttt{printf} in the handler code and then use the \texttt{cat\_stdout.py} script to read it back on the host.  This facility can be used to implement \emph{assertions} to check runtime conditions.
+
+The machine-mode exception handler implemented in the PsPIN runtime will catch exceptions generated in the user space.  It will print a message, dump the registers in the state of when the fault happened, and hang the faulting \ac{hpu} for further investigation.  The register dump and program counter allow a programmer to locate the issue by comparing those with a disassembly of the handler's image.  It is also possible to read and write to \ac{nic} memory locations with the \texttt{mem} utility.
+
+The Linux kernel has various facilities to debug a kernel panic, including the \texttt{netconsole} that prints the kernel log a.k.a.\ \texttt{dmesg} to a remote host over the network, and \texttt{kdump} that would dump the kernel's core memory to disk in the event of a crash.  Please refer to the manual of your Linux distribution\footnote{The user guide from Ubuntu: \url{https://ubuntu.com/server/docs/kernel-crash-dump}} for more information.
+
+\section{Quirks \& Workarounds} \label{sec:quirks}
+
+Here is a list of the known issues and quirks in FPsPIN that need attention during operation:
+
+\begin{itemize}
+    \item The stdout capture does not have flow control implemented.  This means that if multiple \ac{hpu}s try to write a large amount of data to the \ac{fifo}, some characters will be lost when captured on the host.
+    \item The host kernel module, \texttt{mqnic\_app\_pspin.ko}, has a bug that might cause a kernel panic if the driver is detached using \texttt{mqnic-fw} while an \ac{ectx} is active.  Please terminate all running \ac{ectx}'es before detaching the driver.
+    \item Due to unidentified bugs in the memory system of PsPIN, handlers running on FPsPIN would occasionally experience memory corruption or \ac{hpu} hangs, leading to timeouts when polling for notifications in the host application.  As a workaround, the developer can reload the \ac{ectx} without restarting the host application by calling \texttt{fpspin\_exit} and then \texttt{fpspin\_init}.
+    \item The FPsPIN ingress datapath does not correctly handle receive buffer overruns correctly yet; a serious overrun may cause the \ac{nic} to stop receiving packets any more, even in bypass mode.  Please use flow control whenever possible to avoid this situation; otherwise, please use the \texttt{mqnic-fw} utility to reset the whole device and start over.
+    \item The machine may sporadically freeze at a very low level during the datatypes experiment and has to be reset through a power cycle.  We suspect that this is due to one or multiple bugs related to low-level \ac{pcie} operation in Corundum\footnote{Upstream issue: \url{https://github.com/corundum/corundum/issues/162}}.
+    \item The design is hard to close timing due to the congestion issues we described in \Cref{sec:hw-analysis}.  While the design would still work with a small \ac{wns}, issues in \ac{pcie} link training might lead to delayed link training and a long time for the device to appear to the host.  If link training fails to not complete before the host OS boots, a reboot will be needed to enumerate the device properly.
+\end{itemize}

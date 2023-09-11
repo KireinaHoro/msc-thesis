@@ -7,22 +7,26 @@ While FPsPIN is relatively complete in terms of functionality, many design choic
 
 \section{Improving $F_{\text{max}}$} \label{sec:improving-fmax}
 
-An important factor in the current FPsPIN E2E latency as shown in the ICMP ping demo is the handler processing latency.  This is due to the PULP cluster being designed for ASIC and not optimised for maximum $F_{\text{max}}$ on \ac{fpga}s.  We plan to integrate higher frequency RISC-V cores designed \ac{fpga}, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as well as optimise critical paths in the design, to further lower this latency.
+A significant component in the current FPsPIN \ac{e2e} latency as we have shown in the \ac{icmp} and \ac{udp} ping-pong demos in \Cref{sec:demos-ping-pong} is the handler processing latency.  This is due to the fact that the \ac{pulp} cluster was designed for \ac{asic} and not optimised for maximum $F_{\text{max}}$ on \ac{fpga}s.  We plan to integrate higher frequency RISC-V cores designed for \ac{fpga}s, for example VexRiscv\footnote{\url{https://github.com/SpinalHDL/VexRiscv}}, as an attempt to achieve higher overall $F_\text{max}$. In addition, we plan to identify and optimise potential critical paths in the FPsPIN hardware components described in \Cref{sec:hw-analysis}; these components had to run at the lower 40 MHz with \ac{pulp} and thus have not been evaluated for critical path.
 
-\pengcheng{Explore possible timing relaxations such as increasing the SRAM latency}
+Another aspect to explore for a better $F_\text{max}$ is the hardware configuration of the PsPIN cluster used in FPsPIN.  Although we have made aggressive scale-downs in \Cref{tab:pspin-config} compared to the original setup in~\cite{di_girolamo_pspin_2021}, we did not perform a theoretical analysis of the potential impact to throughput under different workloads for a more informed decision.  Proper allocation of L1 and L2 memory and relaxation of the \ac{sram} latency requirements would deliver higher performance with lower resource consumption.  This would in turn reduce congestion that the \ac{eda} tools have to handle, allowing a higher $F_\text{max}$.
 
-\pengcheng{Figure out a sensible PsPIN configuration rather than \Cref{tab:pspin-config}}
+\section{Architectural Exploration for \acs{hpu}s} \label{sec:hpu-arch}
+
+\pengcheng{low fmax from \ac{pulp}: would it be better if we use microblaze or something else?}
+\pengcheng{cf. \Cref{sec:demos-ping-pong} to make the case for domain-specific accelerators; compute-heavy tasks?}
 
 \section{Advanced Flow Control in \acs{slmp}} \label{sec:slmp-fc-future-work}
-\pengcheng{window size auto tune; make use of packet loss \& receiver buffer state statistics}
-\pengcheng{retransmission in case of loss; proper window instead of simple \ac{ack} counting}
 
-For more complicated use cases, an \emph{adaptive} mechanism that automatically determines the best window size may be necessary.  Such a mechanism would make the decision to increase or decrease the flow control window based on various metrics such as per-packet \ac{rtt}, loss rate (with retransmission), or explicit receiver buffer state messages.  A proper exploration of such a mechanism is out of the scope of this thesis.
+We discussed in \Cref{sec:slmp-fc} about the importance of flow control to reliable high throughput of application payload.  We adopted the approach of exposing the flow control window size to the end user for simplicity in the current implementation.  However, as we have shown in \Cref{sec:slmp-demo}, it is tedious and error-prone to tune for an accurate window size manually; the more robust approach, as with \ac{tcp} and QUIC has adopted, is to develop a mechanism to automatically adjust the window size as the protocol operates.  Such a mechanism would make the decision to increase or decrease the flow control window based on various metrics such as per-packet \ac{rtt}, segment loss rate, or explicit receiver buffer state messages.  A control law algorithm such as \ac{aimd} from \ac{tcp} can then be used to actually adjust the window size.
 
-\section{Ingress Latency Hiding} \label{sec:ingress-latency-hiding}
-\pengcheng{issue \ac{her} already when we receive the packet, so that the scheduler can make scheduling decisions. enable scheduling only after ingress \ac{dma} finishes}
-\pengcheng{current situation: scheduling can only start after ingress \ac{dma} finishes}
-\pengcheng{works with complicated scheduler \& short handlers}
+One of the important insight from Portals 4~\cite{barrett_portals_nodate} is that flow control events i.e.\ receiver buffer overrun should map to an exceptional operation mode of the programming interface, but nevertheless handled correctly and not simply fail.  This is also an important insight for \ac{spin}, since the use cases that \ac{spin} targets could not handle failure well.  This prompts the addition of a robust retransmission and error recovery mechanism in \ac{slmp} to serve the applications on top of it reliably.
+
+\section{Parallelise Packet \acs{dma} and Scheduling} \label{sec:ingress-latency-hiding}
+
+The current PsPIN two-level scheduler makes the decision of the destination \ac{hpu} of a packet in one cycle, thanks to the simple round-robin design.  However, the scheduler logic will get more complicated to implement future fair scheduling requirements; it will also run at a higher clock frequency, leading to a smaller per-cycle latency budget.
+
+It is thus desirable to parallelise the scheduling decision with the ingress \ac{dma} process (discussed in \Cref{sec:ingress-datapath}) the packet data to hide the scheduling latency.  This can be achieved by splitting the \ac{her} into two parts.  The first part would be issued to the scheduler as soon as the matching engine generates the packet metadata; it contains information necessary for the scheduler to start the scheduling decision (e.g.\ the ID of the matching \ac{ectx}).  The second part would be generated after the ingress datapath finished allocating buffer space for the packet buffer and \ac{dma}-ing the packet data into the buffer; the scheduler would then actually issue the task to the target \ac{hpu}.  We anticipate that this design would yield the most benefit for a complicated scheduler, in which case the scheduling latency can be hidden in the latency of the ingress datapath.
 
 \section{Host Notification Queue Pair} \label{sec:host-dma-qp}
 
@@ -32,7 +36,12 @@ Another potential improvement is to allow \emph{streaming mapping} of the host \
 
 \section{More Real-world Applications}
 
-We showcased the capabilities of PsPIN handlers through the \ac{udp} ping-pong demo.  However, it would be more beneficial to have real-world applications instead of synthetic benchmarks only.  To further explore in this aspect, we are implementing a memcached-style offloaded key-value store application.  We are also working on porting the MPI Datatypes handlers~\cite{di_girolamo_network-accelerated_2019} to the FPsPIN platform.
+In \Cref{sec:demos}, we showcased the capabilities of FPsPIN through the \ac{icmp} and \ac{udp} ping-pong, the \ac{mpi} Datatypes, and the \ac{slmp} file transfer demos; we found quite a bit of overlooked points in \ac{spin}, of which we discussed in length in \Cref{chap:spin-revisited}. It would be more beneficial to have more \ac{spin}-enabled workloads ported to FPsPIN to further explore the practicalities of \ac{spin} and the \ac{fpga} demo, for example ProtoBuf~\cite{cao_accelerating_2022} or distributed filesystems~\cite{di_girolamo_building_2022}.  FPsPIN would also become the starting point for developing new \ac{spin} applications, which would further allow continuous improvement of the system and standard.
 
 \section{Explore Functionalities from Corundum}
-\pengcheng{NIC-side DRAM, outbound commands to use checksum offloading, PTP timestamps, etc.}
+
+Apart from the host \ac{dma} subsystem of Corundum that we used in FPsPIN, it offers various other features that would be of interest to explore and possibly integrate into the broader picture of \ac{spin}.  One instance is access to memory other than the \ac{bram} or \ac{uram} on the \ac{fpga}: some devices offer \ac{hbm} or DRAM attached to the \ac{fpga} that can be utilised by the \ac{nic}.  These could potentially be utilised as large scratch areas for the offloaded tasks or extra packet buffer.  Corundum also offers extensive support for the \acf{ptp}, which may enable fine-grain profiling of the internal datapaths in Corundum.
+
+\section{Stability \& Bug Fixes}
+
+While the FPsPIN system is complete in function for the demo applications that we implemented and tested in \Cref{sec:demos}, it is far from bug free.  \Cref{sec:quirks} lists the current quirks in the system that required special handling during the implementation and evaluation of the demo applications; they should be resolved properly for stable operation of the system in large-scale applications.

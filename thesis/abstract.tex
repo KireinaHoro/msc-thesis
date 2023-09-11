@@ -1,16 +1,32 @@
 \begin{abstract}
-\pengcheng{What is in-network-computing, introduce sPIN and PsPIN}
-PsPIN is the RISC-V-based packet processing cluster that implements the \acs{spin} in-network compute model proposed and developed at ETH Z{\"u}rich. 
 
-\pengcheng{What composes a full SmartNIC}
-While the design is fully synthesizable and comes with a cycle-accurate simulation model, it requires various other hardware and software components to function as a full system at realistic speeds. 
+% General Background
+In-network-computing with Smart\acs{nic}s is gaining popularity in high-performance networking for their ability to offload packet processing tasks from the CPU and their latency advantage thanks to the proximity to the network traffic without having to go through \acs{pcie}.
+% Specific Background
+The \acs{spin} in-network-computing paradigm developed at ETH Z\"urich aims to provide a programming model for developers to build high-performance packet processing routines for on-path Smart\ac{nic}s.
+% Statement of Problem
+While the paradigm has been evaluated with use cases from diverse scenarios in software and hardware simulation, it has yet to see a full \acs{e2e} system-level evaluation that exercises the entire packet processing loop on hardware in the real world. 
+% Here we show...
+In this thesis, we perform an \acl{e2e} analysis of the \acs{spin} paradigm by building a full-system prototype of \acs{spin} on \acs{fpga} based on P\acs{spin}, a cycle-accurate simulation prototype of \acs{spin}, and Corundum, an open-source \acs{fpga}-based Ethernet \acs{nic}.
+% High-level results
+We show that the resulting system FP\acs{spin} facilitates the development and testing of \acs{spin} handlers, allowing real-world performance and computation/communication overlap evaluations that would not have been possible with the old cycle-accurate simulation models due to the slow simulation speed and absence of a host CPU.  We present various improvement suggestions to the \ac{spin} specification, discovered through the process of building FP\acs{spin}.  In addition, we conduct a detailed performance evaluation of FP\acs{spin} through three benchmarks implemented for the platform, showing a 50 us latency advantage, over 99\% computation/communication overlap, 6.4 Gbps and 1.2 Gbps throughput in simple and complex synthetic benchmarks.
+% Implications
+The lower application throughput shows the deficiency of the packet processing cores used in FPsPIN and shows an opportunity for future research on desirable architectural features for Smart\acs{nic} cores.
 
-\pengcheng{FPsPIN; hardware and software system}
-This project, FPsPIN, bridges the gap by developing a fully-functional demo FPGA SmartNIC based on PsPIN.  The demo system serves as a \acs{poc} for PsPIN in \acs{asic} and facilitates future software and hardware development of the \acs{spin} ecosystem.
 \end{abstract}
+
+% \timos{To write a good abstract I recommend the formula from https://dl.icdst.org/pdfs/files2/0aa47544321d2f2528cab7a5c017adf9.pdf}
 
 \clearpage
 
 \section*{Acknowledgements}
 
-The author would like to thank...
+I would like to express my most sincere gratitude to the advisors of this thesis, Mikhail Khalilov, Timo Schneider, and Prof.\ Dr.\ Torsten Hoefler, for their valuable feedback, guidance, and especially support when it is most needed, throughout the entire thesis project.  I believe that the professionalism, passion, and patience I experienced working with them will have a deep, long-lasting positive impact on my future career.
+
+I would like to heartily thank the members of the NetOS Group at ETH Z\"urich, for their invaluable support in diverse forms.  These include but are not limited to punctual invitations to lunch and Super Kondi~\cite{noauthor_kondi_nodate}, unlimited witty jokes, medal-winning master thesis examples, brilliant talks about old computers, and much more.  I owe my successful completion of this thesis to the acquired mental strength from the time spent with them.
+
+I would also like to thank Junchi Chen and Zhehan Fu, for the many evenings I have spent with them of experimental cooking, drinking, and complaining about various issues in life.  Their sincereness and accompany have been indispensable in helping me manage stress and maintain mental health throughout the project and beyond.
+
+I would like to thank my family, Tingjin Xu and Yaping Guo, for their unlimited and unconditional love ever since I was born and for the decades yet to come.  My life journey and academic endeavours would have not been possible without their support all the way.
+
+Last but not least, I would like to thank \emph{you}, my dear reader, for spending your precious time reading this thesis.  It is with your attention and support that this work could have its influence in the future.
