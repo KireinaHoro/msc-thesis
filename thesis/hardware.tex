@@ -6,7 +6,7 @@ People who are more than casually interested in computers should have at least s
 %\timos{Overall this section is ok, I think it could be improved by providing more background first, i.e., describing the target board a little bit first (instead of later in the testbed description) and introducing components, i.e., what is \ac{axi}, \ac{axi}-Lite etc. Fig 3.1 is already really detailed and at that point not understandable, maybe have an overview figure first that shows less components but clearly says "data path" and "control path". (Note that I only read the HW section, so if this is provided / planned to be in a section before, this might be fine.)
 %I also missed some mapping of described things to code, this could be a simple comment to Fig 3.1 that the names in the blocks correspond to file names where this functionality is implemented. But think of this thesis as documentation that someone who wants to improve on what you did will read.}
 
-As we introduced in \Cref{sec:background-pspin}, P\acs{spin} is a RISC-V-based packet processing cluster implementing the \ac{spin} in-network-computing paradigm.  However, P\acs{spin} itself does not consist of a fully functional SmartNIC due to the lack of capability to receive and send packets; it also lacks an interface to read from and write to the system memory.  The following three classes of hardware components need to be implemented to achieve full functionality of a \ac{spin} \ac{nic}: 
+As we introduced in \Cref{sec:background-pspin}, P\acs{spin} is a RISC-V-based packet processing cluster implementing the \ac{spin} in-network-computing paradigm.  However, P\acs{spin} itself does not consist of a fully functional SmartNIC due to the lack of capability to receive and send packets; it also lacks an interface to read from and write to the system memory.  The following three classes of hardware components need to be implemented to achieve full functionality of a \ac{spin} \ac{nic}:
 
 \begin{itemize}
     \item the \emph{data path}: the P\acs{spin} cluster should be able to receive packet data from the network and send a reply back into it;
@@ -78,7 +78,7 @@ The control registers module is designed to allow reconfiguration during normal 
 
 \begin{figure}
     \centering
-    \includegraphics[width=.8\textwidth]{thesis/figures/corundum-pspin-addr.pdf}
+    \includegraphics[width=.8\textwidth]{figures/corundum-pspin-addr.pdf}
     \caption{Address translation from the Corundum application control space.  Access to the P\acs{spin} host access space always have the top bit as 0; we use the second top bit to select the correct memory area in P\acs{spin}.  Access to the configuration registers have the top bit set to 1; the 22-bit offset is decoded as the 16-bit control register address and the top 6 bits ignored.} \label{fig:hw-addr-map}
 \end{figure}
 
@@ -172,10 +172,10 @@ Each ruleset defines a \emph{mode} in which the output from the matching units a
 
 A few examples of common matching rules are as follows:
 \begin{itemize}
-    \item \texttt{RULE\_IP}: match EtherType at byte 12-13 = \texttt{0x0800} $\rightarrow$ matcher \#3, mask \texttt{0xffff0000}, range \texttt{0x08000000-0x08000000}
-    \item \texttt{RULE\_IP\_PROTO}: match IP protocol at byte 23 = 17 (\acs{udp}) $\rightarrow$ matcher \#5, mask \texttt{0xff}, range \texttt{0x11-0x11}
-    \item \texttt{RULE\_UDP\_DPORT}: match UDP destination port at byte 36-37 = 9330 (\acs{slmp}) $\rightarrow$ matcher \#5, mask \texttt{0xffff0000}, range \texttt{0x24720000-0x24720000}
-    \item \texttt{RULE\_FALSE}: match nothing $\ge$ 1 and $<$ 0 (logic false) $\rightarrow$ matcher \#0, mask \texttt{0x0}, range \texttt{0x1-0x0}
+    \item \texttt{RULE\_IP}: match EtherType at byte 12-13 = \texttt{0x0800} \\ \hskip3em $\rightarrow$ matcher \#3, mask \texttt{0xffff0000}, range \texttt{0x08000000-0x08000000}
+    \item \texttt{RULE\_IP\_PROTO}: match IP protocol at byte 23 = 17 (\acs{udp}) \\ \hskip3em $\rightarrow$ matcher \#5, mask \texttt{0xff}, range \texttt{0x11-0x11}
+    \item \texttt{RULE\_UDP\_DPORT}: match UDP destination port at byte 36-37 = 9330 (\acs{slmp}) \\ \hskip3em $\rightarrow$ matcher \#9, mask \texttt{0xffff0000}, range \texttt{0x24720000-0x24720000}
+    \item \texttt{RULE\_FALSE}: match nothing $\ge$ 1 and $<$ 0 (logic false) \\ \hskip3em $\rightarrow$ matcher \#0, mask \texttt{0x0}, range \texttt{0x1-0x0}
 \end{itemize}
 %\timos{Nice explanation, maybe add an example?}
 
@@ -195,7 +195,7 @@ One complication to be handled in this module is that the matching engine could 
 \paragraph{\ac{her} generator} Once the packet is written to the right place in the L2 packet buffer of P\acs{spin}, the data path can now schedule the packet for processing by issuing a \ac{her} to P\acs{spin}.  Part of the information required to generate a \ac{her} comes from the packet metadata, such as the message ID and if the packet is the last in a message (\emph{End-Of-Message}, EOM).  The rest of the \ac{her} stores the address of the handler functions that the packet should be processed with, as well as the host \ac{dma} and L2 memory regions.  We expose a register control interface to the host through \texttt{pspin\_\-ctrl\_\-regs}.
 
 \paragraph{Collective ingress data path} \texttt{pspin\_\-ingress\_\-datapath} does not provide extra logic by itself, as it is simply an instantiation wrapper of the four data path components.  It keeps the parameters in synchronisation among the data path modules and allows for one single place to pass in custom parameters.  It also functions as a top module for end-to-end simulation and unit tests so that we can validate that the data path modules have consistent assumptions of how each other operates.
- 
+
 \subsection{Egress}
 
 P\acs{spin} also needs the ability to send packets into the network.  This is needed to either complete a protocol by sending back acknowledgements, or transmit packets to other nodes e.g.\ to implement in-network AllReduce~\cite{de_sensi_flare_2021} with P\acs{spin}.  The transmission of the prepared egress packet is handled by \texttt{pspin\_\-egress\_\-datapath}; we discuss about potential problems in preparing the outgoing packet and solutions in \Cref{sec:l3-protocol-handling}.

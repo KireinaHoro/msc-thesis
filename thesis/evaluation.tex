@@ -106,13 +106,13 @@ For both \ac{icmp} and \ac{udp} and the three modes of operation, we measure the
 
 \begin{figure}[tp]
     \centering
-    \includegraphics{thesis/figures/pingpong-lat.pdf}
+    \includegraphics{figures/pingpong-lat.pdf}
     \caption{\ac{e2e} \ac{rtt} of both protocols across the three setups.  We plot the median and 95\% confidence interval of the \ac{rtt} of 20 measurements for each configuration.} \label{fig:pingpong-lat}
 \end{figure}
 
 \begin{figure}[tp]
     \centering
-    \includegraphics{thesis/figures/pingpong-breakdown.pdf}
+    \includegraphics{figures/pingpong-breakdown.pdf}
     \caption{Breakdown of the \ac{e2e} \ac{rtt} into different categories.  The timeline at the top shows the time-series relationship between the various time components (not to scale): \emph{Syscall}, time spent reading the cycles counter from trapping into M-mode; \emph{Handler}, time spent executing the packet handlers, excluding waiting for host; \emph{Host Proc.}, time spent waiting for host DMA and processing on the CPU; and \emph{Sender}, time spent on the Ethernet wire and client side.  \emph{Baseline} marks the median \ac{e2e} \ac{rtt} in \textbf{Host} mode.} \label{fig:pingpong-breakdown}
 \end{figure}
 
@@ -131,19 +131,19 @@ We further observe that the lower frequency that \ac{pulp} cores in FPsPIN run a
 Previous work on \ac{spin} has ported the \emph{MPICH dataloop}-based single-threaded implementation of \ac{mpi} Datatypes to \ac{spin} handlers that run on a simulator-based platform~\cite{di_girolamo_network-accelerated_2019}.  By porting these existing \ac{spin} handlers to FPsPIN, we characterise the throughput of \ac{spin} workloads on FPsPIN with different levels of handler complexity on the platform.  In addition, we showcase the ability of FPsPIN to achieve almost perfect \emph{computation/communication overlap} with a compute-heavy CPU workload that runs simultaneously.  Last but not least, since \ac{mpi} Datatypes requires to send messages of arbitrary length on the network, we demonstrate the operation of the SLMP protocol introduced in \Cref{sec:slmp}.
 
 \paragraph{Experiment} We port the handlers in~\cite{di_girolamo_network-accelerated_2019} to the FPsPIN platform.
-A major difference between the original target platform and FPsPIN is the underlying network layer: the handlers were designed for InfiniBand-style networks that offer a \emph{reliable message transport} with arbitrary length support, while FPsPIN runs on top of lossy Ethernet; we have analysed this difference in network-layer guarantees in detail in \Cref{sec:slmp}.  For \ac{mpi} Datatypes, we encapsulate the serialised buffer in \ac{slmp} messages on the sender side and send back \ac{ack} packets in the handler.  In addition to the \ac{slmp} encapsulation, we modify the original handlers to call correct host DMA and host notification functions offered by the FPsPIN runtime. 
+A major difference between the original target platform and FPsPIN is the underlying network layer: the handlers were designed for InfiniBand-style networks that offer a \emph{reliable message transport} with arbitrary length support, while FPsPIN runs on top of lossy Ethernet; we have analysed this difference in network-layer guarantees in detail in \Cref{sec:slmp}.  For \ac{mpi} Datatypes, we encapsulate the serialised buffer in \ac{slmp} messages on the sender side and send back \ac{ack} packets in the handler.  In addition to the \ac{slmp} encapsulation, we modify the original handlers to call correct host DMA and host notification functions offered by the FPsPIN runtime.
 
 Due to the single-threaded nature of the \emph{dataloop} implementation of \ac{mpi} Datatypes, we are unable to implement \emph{packet-level parallelism} and are thus forced to use a sender window size of 1 packet to ensure serialised packet processing; this has severe performance implications as we discussed in \Cref{sec:slmp}.  To make use of all the 16 \ac{hpu}s on FPsPIN, we implement \emph{message-level parallelism}, sending multiple messages in parallel.  The handler function stores all per-message states in the shared L2 handler memory and selects the correct per-message state according to the \ac{slmp} message ID.  We evaluate the \ac{e2e} bandwidth of two different datatype handlers on FPsPIN in comparison to the reference MPICH datatypes implementation on CPU with varying degrees of parallelism in \Cref{fig:datatypes-tput}.  The structures of the two datatype workloads, denoted as \textbf{Simple} and \textbf{Complex}, are shown in \Cref{fig:datatypes-structure}.
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=\textwidth]{thesis/figures/datatypes-structure.pdf}
+    \includegraphics[width=\textwidth]{figures/datatypes-structure.pdf}
     \caption{Structure of the two datatypes, \textbf{Simple} and \textbf{Complex}, used for evaluating the datatypes handlers; each layer builds an intermediate nested datatype until we get the final type.  \texttt{ctg}: contiguous vector; \texttt{vec}: vector with stride in elements; \texttt{hvec}: vector with stride in bytes.} \label{fig:datatypes-structure}
 \end{figure}
 
 \begin{figure}[tp]
     \centering
-    \includegraphics{thesis/figures/datatypes-tput.pdf}
+    \includegraphics{figures/datatypes-tput.pdf}
     \caption{Comparison of \ac{e2e} datatypes and the \ac{gemm} throughput in diverse parallelism and message length setups.  \emph{Ref.} denotes the reference case where the workload is not overlapped with the other; \emph{Ovlp.} denotes the overlapped case.  We also plot the throughput of the MPICH reference CPU implementation as baseline for comparison.  We plot the mean value of 20 measurements in each setup; the error bars in black show the 95\% confidence interval.} \label{fig:datatypes-tput}
 \end{figure}
 
@@ -156,13 +156,13 @@ We plot the overlap ratio and polling overhead from two datatypes in \Cref{fig:d
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=.8\textwidth]{thesis/figures/datatypes-tune-goal.pdf}
+    \includegraphics[width=.8\textwidth]{figures/datatypes-tune-goal.pdf}
     \caption{Two possible situations of overlap between \ac{gemm} and datatypes processing.  The top case overestimates the latency of datatypes processing due to not polling at a high-enough frequency; the bottom case imposes excessive overhead on the \ac{gemm} workload due to polling too frequently.} \label{fig:datatypes-tuning-goal}
 \end{figure}
 
 \begin{figure}[tp]
     \centering
-    \includegraphics{thesis/figures/datatypes-overlap.pdf}
+    \includegraphics{figures/datatypes-overlap.pdf}
     \caption{Overlap ratio of the two data types as presented in \Cref{fig:datatypes-structure}.  The left plot shows the ratio with a fixed message size of 2160 KB across different parallelism settings; the right plot shows the ratio with a fixed parallelism of 16 \ac{hpu}s across different message sizes.  For each configuration, we plot the median values and 95\% confidence intervals across 20 samples.} \label{fig:datatypes-overlap}
 \end{figure}
 
@@ -178,7 +178,7 @@ The throughput gain per extra \ac{hpu} utilised remains relatively constant at a
 We note in addition that despite the fact that the \textbf{Simple} datatype has practically the most simple structure as we have shown in \Cref{fig:datatypes-structure}, the \ac{e2e} throughput of the datatype is still way lower than the IPerf3 throughput of around 8 Gbps.  We conjecture that the \ac{mpi} dataloop software implementation contributed significantly for a very big overhead in packet handling, resulting in the overall low throughput.  We believe that the limitation of having to enforce an \ac{slmp} flow control window size of 1 also partly impacted the \ac{e2e} throughput to some degree.  We verify these conjectures in \Cref{sec:slmp-demo} through the comparison of throughput with the synthetic \ac{slmp} file transfer benchmark.
 
 We further observe that the \ac{gemm} workload suffers from a moderate \textbf{20\%-30\%} slow-down across different parallelism settings when overlapped with datatypes processing, as compared to the reference case.  We believe that this slow-down mainly comes from the memory-intensive nature of \ac{gemm}, since overlapped datatypes processing would also compete for CPU memory bandwidth through host \ac{dma}.  We conjecture that the slow-down would be less significant for a more \emph{compute-bound} CPU workload.  A similar effect of main memory bandwidth competition can also be observed through a comparison of datatypes processing throughput between the reference and overlapped cases.
-We recognise that the overlapping ratio stays relatively stable across different degree of parallelism and message sizes.  
+We recognise that the overlapping ratio stays relatively stable across different degree of parallelism and message sizes.
 
 \Cref{fig:datatypes-overlap} showed a stable overlap ratio of \textbf{over 99\%} for all parallelism configurations.  We also observe that for shorter messages the overlap ratio drops to as low as 94\% due to the short message not allowing longer \ac{gemm} workloads within the required number of polls.  This is further confirmed by a comparison of the overlap ratio between the \textbf{Simple} and \textbf{Complex} datatypes, showing that shorter datatypes have lower overlap ratio across all message sizes.
 
@@ -196,7 +196,7 @@ The \ac{mpi} datatypes demo forced a flow control window size of 1 packet due to
 
 \begin{figure}[t]
     \centering
-    \includegraphics{thesis/figures/slmp-tput.pdf}
+    \includegraphics{figures/slmp-tput.pdf}
     \caption{Median throughput of both protocols across different sender-side window size and parallelism configurations.  The top left plot shows the best throughput across different window sizes; the top right across different thread counts; the bottom two across different file lengths.  Each data point comes from 20 successful \ac{slmp} message deliveries; the error bars in black show the 95\% confidence interval.  The \emph{IPerf3} and \emph{Datatypes} lines are from \Cref{fig:datatypes-tput}.} \label{fig:slmp-tput}
 \end{figure}
 
@@ -204,7 +204,7 @@ As we discussed in \Cref{sec:slmp}, a flow control window too big will result in
 
 \begin{figure}[t]
     \centering
-    \includegraphics{thesis/figures/slmp-loss.pdf}
+    \includegraphics{figures/slmp-loss.pdf}
     \caption{Failure rate of \ac{slmp} transmissions under different window size and sender thread count configurations.  We plot the maximum failure rate acquired with each sender configuration across all file lengths.  Note that in the right plot all lines below the window size 1024 overlap with each other at the bottom of the plot.} \label{fig:slmp-loss}
 \end{figure}
 

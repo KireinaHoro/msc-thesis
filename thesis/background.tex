@@ -14,19 +14,19 @@ SmartNICs from different vendors tend to have different architectures, but they 
     % preliminary
     \sbox\twosubbox{%
       \resizebox{\dimexpr0.95\textwidth-1em}{!}{%
-        \includegraphics[height=3cm]{thesis/figures/on-path-smartnics.pdf}%
-        \includegraphics[height=3cm]{thesis/figures/off-path-smartnics.pdf}%
+        \includegraphics[height=3cm]{figures/on-path-smartnics.pdf}%
+        \includegraphics[height=3cm]{figures/off-path-smartnics.pdf}%
       }%
     }
     \setlength{\twosubht}{\ht\twosubbox}
-    
+
     \centering
-    
+
     \subcaptionbox{On-path SmartNICs.  \label{fig:on-path-smartnic}}{%
-      \includegraphics[height=\twosubht]{thesis/figures/on-path-smartnics.pdf}%
+      \includegraphics[height=\twosubht]{figures/on-path-smartnics.pdf}%
     }\quad
     \subcaptionbox{Off-path SmartNICs.  The \ac{pcie} switch is marked in blue.  \label{fig:off-path-smartnic}}{%
-      \includegraphics[height=\twosubht]{thesis/figures/off-path-smartnics.pdf}%
+      \includegraphics[height=\twosubht]{figures/off-path-smartnics.pdf}%
     }
     \caption[Overview of different SmartNIC data path designs]{Overview of different \ac{pcie}-based SmartNIC data path designs.  The purple arrows denote different data flow interactions between the \ac{nic} cores and the host CPU upon incoming traffic.  \circled{1}: offloaded traffic; \circled{2}: (non-offloaded) host traffic; \circled{3}: host-\ac{nic} interactions.} \label{fig:smartnic-datapaths}
 \end{figure}
@@ -47,14 +47,14 @@ Thanks to the packet processor not being on the critical path to the host, the o
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=\textwidth]{thesis/figures/spin-arch.pdf}
+    \includegraphics[width=\textwidth]{figures/spin-arch.pdf}
     \caption{Overview of the \ac{spin} architecture.}
     \label{fig:spin-arch}
 \end{figure}
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=.85\textwidth]{thesis/figures/spin-handlers.pdf}
+    \includegraphics[width=.85\textwidth]{figures/spin-handlers.pdf}
     \caption{Consumption of packets of an incoming message by packet handlers.  Inputs and actions of individual handlers are shown in the zoom-in view.} \label{fig:spin-handlers}
 \end{figure}
 
@@ -90,7 +90,7 @@ The \ac{axi}~\cite{arm_limited_amba_2003, arm_limited_amba_2010} is a family of 
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=\textwidth]{thesis/figures/pspin-arch.pdf}
+    \includegraphics[width=\textwidth]{figures/pspin-arch.pdf}
     \caption{Overview of the P\acs{spin} architecture and \ac{nic} model.  The purple arrows denote the three major data flows cross-referenced in \Cref{sec:background-pspin}.} \label{fig:pspin-arch}
 \end{figure}
 

@@ -13,8 +13,9 @@ Another aspect to explore for a better $F_\text{max}$ is the hardware configurat
 
 \section{Architectural Exploration for \acs{hpu}s} \label{sec:hpu-arch}
 
-\pengcheng{low fmax from \ac{pulp}: would it be better if we use microblaze or something else?}
-\pengcheng{cf. \Cref{sec:demos-ping-pong} to make the case for domain-specific accelerators; compute-heavy tasks?}
+One of the reasons \ac{pulp} was chosen as the \ac{hpu} cores for P\acs{spin} is the \ac{pulp} DSP instruction set, which contains various custom instructions for bit manipulation and hardware loops.  These instructions played an important role in achieving the performance of P\ac{spin} of 200 Gbps.   Although it is important to use an \ac{hpu} core design with a high $F_\text{max}$ on \ac{fpga}s, the \ac{isa} of the core could also vastly affect the packet processing performance and should be chosen carefully: a detailed architectural analysis is needed before investing time into integrating the new core design into the FP\acs{spin} framework.
+
+We have seen significant \ac{hpu} overhead from IP checksum calculation in the \ac{icmp} ping benchmark in \Cref{sec:demos-ping-pong}.  This raises the important question of the necessity of \emph{domain-specific accelerators} in a packet processing scenario like \ac{spin}.  It is important to balance between flexibility and high-performance: while IP checksum or cryptography accelerators might be useful for almost all packet handlers, a \ac{gemm} accelerator might only be used by few applications, leading to a waste in resources.  The flexibility of FP\acs{spin} on \ac{fpga}s would allow further exploration in finding the right combination of accelerators for high-performance packet processing.
 
 \section{Advanced Flow Control in \acs{slmp}} \label{sec:slmp-fc-future-work}
 
